@@ -14,6 +14,36 @@ Cargo.lock
 Thumbs.db
 
 # Local config
-config.local.toml
 .env
+config.local.toml
 *.log
+
+# Docker
+docker-compose.override.yml
+
+# Database
+*.db
+*.sqlite
+*.sqlc
+
+# Backups
+*.backup
+*.tar.gz
+
+# Test output
+test-results/
+coverage/
+
+# Binaries
+snex-api
+snex-issuer
+snex-verifier
+snex-registry
+snex-reporting
+snex-voting
+snex-levelc
+snex-anchoring
+snex-retention
+snex-tenant
+snex-client
+snex-cli

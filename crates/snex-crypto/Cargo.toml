@@ -1,0 +1,38 @@
+[package]
+name = "snex-crypto"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Core cryptographic primitives for SNEX: BBS signatures, Pedersen commitments, nullifiers, key hierarchy"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+zeroize = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+blake3 = { workspace = true }
+ed25519-dalek = { workspace = true }
+x25519-dalek = { workspace = true }
+ml-kem = { workspace = true }
+ml-dsa = { workspace = true }
+argon2 = { workspace = true }
+aes-gcm = { workspace = true }
+chacha20poly1305 = { workspace = true }
+hkdf = { workspace = true }
+p256 = { workspace = true }
+k256 = { workspace = true }
+group = { workspace = true }
+elliptic-curve = { workspace = true }
+ff = { workspace = true }
+subtle = { workspace = true }
+constant-time-eq = { workspace = true }
+bytes = { workspace = true }
+hex = { workspace = true }
+base64 = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

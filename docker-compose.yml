@@ -1,0 +1,159 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: snex
+      POSTGRES_USER: snex
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-snex}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U snex -d snex"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  snex-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      DATABASE_URL: postgresql://snex:${POSTGRES_PASSWORD:-snex}@postgres:5432/snex
+      REDIS_URL: redis://redis:6379
+      SNEX_SERVER__HOST: 0.0.0.0
+      SNEX_SERVER__PORT: 8080
+      SNEX_LOGGING__LEVEL: info
+      SNEX_LOGGING__FORMAT: json
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  snex-issuer:
+    build:
+      context: .
+      dockerfile: Dockerfile.issuer
+    environment:
+      DATABASE_URL: postgresql://snex:${POSTGRES_PASSWORD:-snex}@postgres:5432/snex
+      SNEX_ISSUER__EPOCH_DURATION_DAYS: 180
+      SNEX_ISSUER__CREDENTIAL_LIFETIME_EPOCHS: 3
+      SNEX_ISSUER__ADVANCE_ISSUANCE_EPOCHS: 1
+      SNEX_ISSUER__GRACE_PERIOD_DAYS: 14
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  snex-verifier:
+    build:
+      context: .
+      dockerfile: Dockerfile.verifier
+    environment:
+      DATABASE_URL: postgresql://snex:${POSTGRES_PASSWORD:-snex}@postgres:5432/snex
+      SNEX_VERIFIER__MIN_BATCH_SIZE: 8
+      SNEX_VERIFIER__MAX_BATCH_SIZE: 50
+      SNEX_VERIFIER__MAX_ESTABLISHMENT_PERIOD_HOURS: 72
+      SNEX_VERIFIER__MIN_ESTABLISHMENT_JITTER_HOURS: 1
+      SNEX_VERIFIER__MINIMUM_ANONYMITY_SET: 30
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  snex-registry:
+    build:
+      context: .
+      dockerfile: Dockerfile.registry
+    environment:
+      DATABASE_URL: postgresql://snex:${POSTGRES_PASSWORD:-snex}@postgres:5432/snex
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  snex-anchoring:
+    build:
+      context: .
+      dockerfile: Dockerfile.anchoring
+    environment:
+      DATABASE_URL: postgresql://snex:${POSTGRES_PASSWORD:-snex}@postgres:5432/snex
+      SNEX_ANCHORING__ANCHOR_INTERVAL_SECONDS: 3600
+      SNEX_ANCHORING__MAX_ANCHOR_GAP_SECONDS: 259200
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  snex-retention:
+    build:
+      context: .
+      dockerfile: Dockerfile.retention
+    environment:
+      DATABASE_URL: postgresql://snex:${POSTGRES_PASSWORD:-snex}@postgres:5432/snex
+      SNEX_RETENTION__REGIME1_GENERATIONS: 14
+      SNEX_RETENTION__REGIME1_GENERATION_INTERVAL_HOURS: 24
+      SNEX_RETENTION__REGIME2_GENERATIONS: 8
+      SNEX_RETENTION__REGIME2_GENERATION_INTERVAL_HOURS: 168
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  default:
+    name: snex-network
