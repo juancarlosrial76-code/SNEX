@@ -7,7 +7,7 @@ use snex_core::{
 };
 use snex_crypto::{
     nullifiers::{Nullifier, OperationSecret, Pseudonym, PseudonymSecret},
-    hash::Hash,
+    hashing::Hash,
 };
 use snex_registry::service::RegistryService;
 use snex_registry::database::RegistryDatabase;
@@ -23,7 +23,7 @@ async fn setup_test_db() -> PgPool {
     PgPool::connect(&database_url).await.unwrap()
 }
 
-async fn setup_services(pool: PgPool) -> (VotingService, VerifierService, RegistryService) {
+async fn setup_services(pool: PgPool) -> (VotingService, std::sync::Arc<VerifierService>, std::sync::Arc<RegistryService>) {
     let config = AppConfig::default();
     
     let registry_db = RegistryDatabase::new(pool.clone());
@@ -147,7 +147,7 @@ async fn test_voting_double_vote_rejection() {
 
 #[tokio::test]
 async fn test_voting_finalize_ballot() {
-    let pool = setup_test_db().await.
+    let pool = setup_test_db().await;
     let (voting, _verifier, _registry) = setup_services(pool).await;
     
     let tenant_id = Uuid::new_v4();
@@ -180,7 +180,7 @@ async fn test_voting_finalize_ballot() {
         
         let mut snap = Snapshot::new(tenant_id, Epoch::current(), Some(ballot.id));
         snap.add_leaf(SnapshotLeaf {
-            pseudonym: op_secret.derive_vote_nullifier(b"tenant"),
+            pseudonym: Pseudonym(op_secret.derive_vote_nullifier(b"tenant").0),
             reporting_authorised: true,
             voting_authorised: true,
             index: 0,

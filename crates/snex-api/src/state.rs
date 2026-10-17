@@ -47,9 +47,21 @@ impl ApiState {
         
         let voting = Arc::new(VotingService::new(registry.clone(), verifier.clone(), config.clone()));
         
-        let level_c = Arc::new(LevelCService::new(config.level_c.clone()));
+        let level_c = Arc::new(LevelCService::new(snex_core::levelc::LevelCConfig {
+            minors_blocked: config.level_c.minors_blocked,
+            key_package_retention_days: config.level_c.key_package_retention_days,
+            max_freshness_lag_seconds: config.level_c.max_freshness_lag_seconds,
+            allowed_ciphersuites: config.level_c.allowed_ciphersuites.clone(),
+            require_post_quantum: config.level_c.require_post_quantum,
+        }));
         
-        let anchoring = Arc::new(AnchoringService::new(config.anchoring.clone())?);
+        let anchoring = Arc::new(AnchoringService::new(snex_core::anchoring::AnchorConfig {
+            anchor_interval_seconds: config.anchoring.anchor_interval_seconds,
+            max_anchor_gap_seconds: config.anchoring.max_anchor_gap_seconds,
+            anchor_services: config.anchoring.anchor_services.clone(),
+            witness_enabled: config.anchoring.witness_enabled,
+            witness_endpoints: config.anchoring.witness_endpoints.clone(),
+        })?);
         anchoring.start_anchor_task().await;
         
         let retention = Arc::new(RetentionService::new(master_key, config.retention.clone()));

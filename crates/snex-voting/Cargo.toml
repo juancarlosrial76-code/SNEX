@@ -20,3 +20,5 @@ snex-registry = { path = "../snex-registry" }
 snex-verifier = { path = "../snex-verifier" }
 sqlx = { workspace = true }
 async-trait = { workspace = true }
+axum = { workspace = true }
+hex = { workspace = true }

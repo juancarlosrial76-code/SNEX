@@ -6,7 +6,7 @@ use snex_core::{
 };
 use snex_crypto::{
     nullifiers::{Nullifier, OperationSecret, Pseudonym},
-    hash::Hash,
+    hashing::Hash,
 };
 use snex_registry::service::RegistryService;
 use snex_verifier::service::VerifierService;
@@ -77,12 +77,12 @@ impl VotingService {
         
         let nullifier = operation_secret.derive_vote_nullifier(ballot.id.as_bytes());
         
-        let exists = self.registry.check_nullifier(snex_core::registry::NullifierDomain::Vote, &nullifier).await;
+        let exists = self.registry.check_nullifier(snex_registry::state::NullifierDomain::Vote, &nullifier).await;
         if exists {
             return Err(CoreError::DoubleVote);
         }
         
-        let blocked = self.registry.is_blocked(snex_core::registry::NullifierDomain::Vote, &nullifier).await;
+        let blocked = self.registry.is_blocked(snex_registry::state::NullifierDomain::Vote, &nullifier).await;
         if blocked {
             return Err(CoreError::InvalidStateTransition("Vote nullifier blocked".into()));
         }

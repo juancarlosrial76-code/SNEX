@@ -7,6 +7,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use chrono::Utc;
 use snex_core::{
     voting::{Ballot, Vote, VoteValue, VoteTally, Snapshot, MerkleProof},
     epoch::Epoch,
@@ -14,7 +15,7 @@ use snex_core::{
 };
 use snex_crypto::{
     nullifiers::{Nullifier, OperationSecret, Pseudonym},
-    hash::Hash,
+    hashing::Hash,
 };
 use crate::service::VotingService;
 
@@ -94,7 +95,7 @@ pub fn router() -> Router<Arc<VotingService>> {
 async fn create_ballot(
     State(service): State<Arc<VotingService>>,
     Json(req): Json<CreateBallotRequest>,
-) -> Result<Json<CreateBallotResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<CreateBallotResponse>, (StatusCode, String)> {
     let opens_at = chrono::DateTime::parse_from_rfc3339(&req.opens_at)
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid opens_at".into()))?
         .with_timezone(&chrono::Utc);
@@ -119,7 +120,7 @@ async fn cast_vote(
     State(service): State<Arc<VotingService>>,
     Path(ballot_id): Path<Uuid>,
     Json(req): Json<CastVoteRequest>,
-) -> Result<Json<CastVoteResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<CastVoteResponse>, (StatusCode, String)> {
     let ballot = service.create_ballot(
         Uuid::nil(),
         "".into(),
@@ -130,8 +131,11 @@ async fn cast_vote(
     
     let op_secret = OperationSecret::from_bytes(req.operation_secret.try_into().map_err(|_| (StatusCode::BAD_REQUEST, "Invalid operation secret".into()))?);
     
-    let pseudonym = Pseudonym::from_hex(&req.pseudonym)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let pseudonym = Pseudonym(
+        req.pseudonym
+            .try_into()
+            .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid pseudonym".to_string()))?,
+    );
 
     let merkle_proof = snex_core::voting::MerkleProof {
         leaf_index: req.merkle_proof.leaf_index,
@@ -165,7 +169,7 @@ async fn cast_vote(
 async fn finalize_ballot(
     State(service): State<Arc<VotingService>>,
     Path(ballot_id): Path<Uuid>,
-) -> Result<Json<FinalizeBallotResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<FinalizeBallotResponse>, (StatusCode, String)> {
     let tally = service.finalize_ballot(ballot_id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(FinalizeBallotResponse { tally }))
@@ -174,7 +178,7 @@ async fn finalize_ballot(
 async fn get_vote_register(
     State(service): State<Arc<VotingService>>,
     Path(ballot_id): Path<Uuid>,
-) -> Result<Json<snex_core::voting::VoteRegister>, (StatusCode, String)> {
+) -> std::result::Result<Json<snex_core::voting::VoteRegister>, (StatusCode, String)> {
     let register = service.get_vote_register(ballot_id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or((StatusCode::NOT_FOUND, "Vote register not found".into()))?;
@@ -184,7 +188,7 @@ async fn get_vote_register(
 async fn get_snapshot(
     State(service): State<Arc<VotingService>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<SnapshotResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<SnapshotResponse>, (StatusCode, String)> {
     let snapshot = service.get_snapshot(id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or((StatusCode::NOT_FOUND, "Snapshot not found".into()))?;
@@ -199,7 +203,7 @@ async fn get_snapshot(
 async fn get_anonymity_set(
     State(service): State<Arc<VotingService>>,
     Path(tenant_id): Path<Uuid>,
-) -> Result<Json<AnonymitySetResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<AnonymitySetResponse>, (StatusCode, String)> {
     let count = service.get_anonymity_set(tenant_id).await;
     Ok(Json(AnonymitySetResponse { tenant_id, count }))
 }

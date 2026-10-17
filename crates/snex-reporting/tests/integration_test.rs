@@ -21,7 +21,7 @@ async fn setup_test_db() -> PgPool {
     PgPool::connect(&database_url).await.unwrap()
 }
 
-async fn setup_services(pool: PgPool) -> (ReportingService, RegistryService) {
+async fn setup_services(pool: PgPool) -> (ReportingService, std::sync::Arc<RegistryService>) {
     let config = AppConfig::default();
     
     let registry_db = RegistryDatabase::new(pool.clone());
@@ -126,7 +126,7 @@ async fn test_reporting_reply() {
 
 #[tokio::test]
 async fn test_reporting_case_handover() {
-    let pool = setup_test_db().await.
+    let pool = setup_test_db().await;
     let (reporting, _registry) = setup_services(pool).await;
     
     let tenant_id = Uuid::new_v4();

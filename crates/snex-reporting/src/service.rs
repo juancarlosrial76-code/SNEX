@@ -37,12 +37,12 @@ impl ReportingService {
     ) -> Result<(Report, Case)> {
         let rate_limit_tag = operation_secret.derive_report_nullifier(report_window, slot);
         
-        let blocked = self.registry.is_blocked(snex_core::registry::NullifierDomain::Report, &rate_limit_tag).await;
+        let blocked = self.registry.is_blocked(snex_registry::state::NullifierDomain::Report, &rate_limit_tag).await;
         if blocked {
             return Err(CoreError::RateLimitExceeded);
         }
         
-        let exists = self.registry.check_nullifier(snex_core::registry::NullifierDomain::Report, &rate_limit_tag).await;
+        let exists = self.registry.check_nullifier(snex_registry::state::NullifierDomain::Report, &rate_limit_tag).await;
         if exists {
             return Err(CoreError::DoubleReport);
         }
@@ -77,14 +77,14 @@ impl ReportingService {
         self.registry.close_case(case_id).await
     }
 
-    pub async fn get_mailbox(&self, case_handle: &CaseHandle) -> Result<Option<snex_core::registry::Mailbox>> {
+    pub async fn get_mailbox(&self, case_handle: &CaseHandle) -> Result<Option<snex_registry::state::Mailbox>> {
         self.registry.get_mailbox(case_handle).await
     }
 
     pub async fn check_rate_limit(&self, tenant_id: Uuid, operation_secret: &OperationSecret, window: u64) -> Result<bool> {
         let tag = operation_secret.derive_rate_limit_tag(window, tenant_id.as_bytes());
-        let blocked = self.registry.is_blocked(snex_core::registry::NullifierDomain::RateLimit, &tag).await;
-        let exists = self.registry.check_nullifier(snex_core::registry::NullifierDomain::RateLimit, &tag).await;
+        let blocked = self.registry.is_blocked(snex_registry::state::NullifierDomain::RateLimit, &tag).await;
+        let exists = self.registry.check_nullifier(snex_registry::state::NullifierDomain::RateLimit, &tag).await;
         Ok(!blocked && !exists)
     }
 

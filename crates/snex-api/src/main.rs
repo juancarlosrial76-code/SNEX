@@ -1,33 +1,29 @@
 use snex_api::{routes, state::ApiState};
 use snex_core::config::AppConfig;
 use sqlx::PgPool;
-use std::sync::Arc;
 use tokio::signal;
 use tracing::{info, error};
-use axum::Server;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
+    // TODO: tracing-subscriber is not in the offline registry cache; re-enable logging init when available.
     
     let config = AppConfig::load(None).unwrap_or_default();
     let database_url = &config.database.url;
     
     let pool = PgPool::connect(database_url).await?;
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    sqlx::migrate!("../../migrations").run(&pool).await?;
     
-    let state = Arc::new(ApiState::new(config.clone(), pool).await?);
+    let state = ApiState::new(config.clone(), pool).await?;
     
-    let app = routes::router().with_state(state.clone());
+    let app = routes::router(&state);
     
-    let addr = format!("{}:{}", config.server.host, config.server.port).parse()?;
+    let addr = format!("{}:{}", config.server.host, config.server.port);
     info!("Starting SNEX API on {}", addr);
     
-    let server = Server::bind(&addr).serve(app.into_make_service());
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
     
-    let graceful = server.with_graceful_shutdown(shutdown_signal());
-    
-    if let Err(e) = graceful.await {
+    if let Err(e) = axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await {
         error!("Server error: {}", e);
     }
     

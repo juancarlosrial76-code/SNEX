@@ -18,6 +18,14 @@ use snex_crypto::{
 };
 use crate::service::ReportingService;
 
+fn case_handle_from_hex(s: &str) -> std::result::Result<CaseHandle, String> {
+    let bytes = hex::decode(s).map_err(|e| e.to_string())?;
+    let arr: [u8; 32] = bytes
+        .try_into()
+        .map_err(|_| "CaseHandle must be 32 bytes".to_string())?;
+    Ok(CaseHandle(arr))
+}
+
 #[derive(Deserialize)]
 pub struct SubmitReportRequest {
     pub tenant_id: Uuid,
@@ -98,7 +106,7 @@ pub fn router() -> Router<Arc<ReportingService>> {
 async fn submit_report(
     State(service): State<Arc<ReportingService>>,
     Json(req): Json<SubmitReportRequest>,
-) -> Result<Json<SubmitReportResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<SubmitReportResponse>, (StatusCode, String)> {
     let op_secret = OperationSecret::from_bytes(req.operation_secret.try_into().map_err(|_| (StatusCode::BAD_REQUEST, "Invalid operation secret".into()))?);
     
     let (report, case) = service.submit_report(
@@ -115,7 +123,7 @@ async fn submit_report(
     Ok(Json(SubmitReportResponse {
         report_id: report.id,
         case_id: case.id,
-        case_handle: report.case_handle.to_hex(),
+        case_handle: hex::encode(report.case_handle.0),
     }))
 }
 
@@ -123,7 +131,7 @@ async fn submit_reply(
     State(service): State<Arc<ReportingService>>,
     Path(case_id): Path<Uuid>,
     Json(req): Json<SubmitReplyRequest>,
-) -> Result<Json<SubmitReplyResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<SubmitReplyResponse>, (StatusCode, String)> {
     let sent_by = match req.sent_by.as_str() {
         "reporter" => ReplySender::Reporter,
         "officer" => ReplySender::Officer,
@@ -140,7 +148,7 @@ async fn handover_case(
     State(service): State<Arc<ReportingService>>,
     Path(id): Path<Uuid>,
     Json(req): Json<HandoverCaseRequest>,
-) -> Result<Json<HandoverCaseResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<HandoverCaseResponse>, (StatusCode, String)> {
     service.handover_case(id, req.new_officer_key).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(HandoverCaseResponse { handed_over: true }))
@@ -149,7 +157,7 @@ async fn handover_case(
 async fn close_case(
     State(service): State<Arc<ReportingService>>,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> std::result::Result<StatusCode, (StatusCode, String)> {
     service.close_case(id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::OK)
@@ -158,16 +166,16 @@ async fn close_case(
 async fn get_mailbox(
     State(service): State<Arc<ReportingService>>,
     Path(case_handle_hex): Path<String>,
-) -> Result<Json<MailboxResponse>, (StatusCode, String)> {
-    let case_handle = CaseHandle::from_hex(&case_handle_hex)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+) -> std::result::Result<Json<MailboxResponse>, (StatusCode, String)> {
+    let case_handle = case_handle_from_hex(&case_handle_hex)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     let mailbox = service.get_mailbox(&case_handle).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or((StatusCode::NOT_FOUND, "Mailbox not found".into()))?;
 
     Ok(Json(MailboxResponse {
-        case_handle: mailbox.case_handle.to_hex(),
+        case_handle: hex::encode(mailbox.case_handle.0),
         messages: mailbox.messages.into_iter().map(|m| MailboxMessageResponse {
             id: m.id,
             direction: format!("{:?}", m.direction),
@@ -181,7 +189,7 @@ async fn get_mailbox(
 async fn submit_external_intake(
     State(service): State<Arc<ReportingService>>,
     Json(req): Json<ExternalIntakeRequest>,
-) -> Result<Json<ExternalIntakeResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<ExternalIntakeResponse>, (StatusCode, String)> {
     let report = service.submit_external_intake(
         req.tenant_id,
         EncryptedData(req.content),

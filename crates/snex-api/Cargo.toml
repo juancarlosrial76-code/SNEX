@@ -25,3 +25,6 @@ snex-levelc = { path = "../snex-levelc" }
 snex-anchoring = { path = "../snex-anchoring" }
 snex-retention = { path = "../snex-retention" }
 snex-tenant = { path = "../snex-tenant" }
+snex-core = { path = "../snex-core" }
+snex-crypto = { path = "../snex-crypto" }
+sqlx = { workspace = true }

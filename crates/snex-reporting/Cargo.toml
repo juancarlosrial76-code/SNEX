@@ -19,3 +19,5 @@ snex-core = { path = "../snex-core" }
 snex-registry = { path = "../snex-registry" }
 sqlx = { workspace = true }
 async-trait = { workspace = true }
+axum = { workspace = true }
+hex = { workspace = true }
