@@ -155,4 +155,13 @@ cargo test --workspace --test integration
 
 ## License
 
-MIT OR Apache-2.0
+Copyright (C) 2026 Juan Carlos Rial Parente
+
+SNEX is free software: you can redistribute it and/or modify it under the terms of the
+GNU Affero General Public License, version 3 only (AGPL-3.0-only), as published by the
+Free Software Foundation. See [LICENSE](LICENSE).
+
+If you run a modified version of SNEX as a network service, the AGPL requires you to offer
+the complete corresponding source code to its users.
+
+For commercial licensing outside the terms of the AGPL, contact the copyright holder.

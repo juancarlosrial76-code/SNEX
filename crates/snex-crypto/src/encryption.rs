@@ -1,55 +1,82 @@
 use crate::error::{CryptoError, Result};
-use crate::key_hierarchy::{Dek, EncryptedData, PqWrappingKey, PqWrappedData};
+use crate::key_hierarchy::{Dek, PqWrappingKey, PqWrappedData};
+pub use crate::key_hierarchy::EncryptedData;
 use crate::hashing::Hash;
-use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret as X25519StaticSecret, EphemeralSecret};
+use x25519_dalek::PublicKey as X25519PublicKey;
 use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
-use ml_kem::{MlKem768, MlKem1024};
+use ml_kem::{MlKem768, MlKem1024, KemCore, EncodedSizeUser, Ciphertext as MlKemCiphertext};
+use ml_kem::kem::{Encapsulate, Decapsulate};
+use ml_kem::array::Array;
 use rand::RngCore;
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, ser::SerializeStruct};
 use zeroize::{Zeroize, Zeroizing};
 
 pub const TLS_HYBRID_LABEL: &[u8] = b"SNEX TLS Hybrid v1";
 pub const PQ_HYBRID_LABEL: &[u8] = b"SNEX PQ Hybrid v1";
 
-#[derive(Clone, Debug, Zeroize, Serialize, Deserialize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct X25519KeyPair {
-    pub private: Zeroizing<X25519StaticSecret>,
-    pub public: X25519PublicKey,
+    pub private: [u8; 32],
+    pub public: [u8; 32],
 }
 
 impl X25519KeyPair {
     pub fn generate() -> Self {
-        let private = X25519StaticSecret::random_from_rng(rand::rngs::OsRng);
-        let public = X25519PublicKey::from(&private);
-        Self { private: Zeroizing::new(private), public }
+        let mut private = [0u8; 32];
+        rand::rngs::OsRng.fill_bytes(&mut private);
+        let public = x25519_dalek::x25519(private, [9u8; 32]);
+        Self { private, public }
     }
 
-    pub fn from_private(private: X25519StaticSecret) -> Self {
-        let public = X25519PublicKey::from(&private);
-        Self { private: Zeroizing::new(private), public }
+    pub fn from_private(private: [u8; 32]) -> Self {
+        let public = x25519_dalek::x25519(private, [9u8; 32]);
+        Self { private, public }
     }
 
-    pub fn diffie_hellman(&self, peer_public: &X25519PublicKey) -> [u8; 32] {
-        self.private.diffie_hellman(peer_public).to_bytes()
+    pub fn diffie_hellman(&self, peer_public: &[u8; 32]) -> [u8; 32] {
+        x25519_dalek::x25519(self.private, *peer_public)
     }
 }
 
-#[derive(Clone, Debug, Zeroize, Serialize, Deserialize)]
+impl Serialize for X25519KeyPair {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_struct("X25519KeyPair", 2)?;
+        state.serialize_field("private", &self.private)?;
+        state.serialize_field("public", &self.public)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for X25519KeyPair {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct X25519KeyPairHelper {
+            private: [u8; 32],
+            public: [u8; 32],
+        }
+        let helper = X25519KeyPairHelper::deserialize(deserializer)?;
+        Ok(Self { private: helper.private, public: helper.public })
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct Ed25519KeyPair {
-    pub private: Zeroizing<SigningKey>,
+    pub private: SigningKey,
     pub public: VerifyingKey,
 }
 
 impl Ed25519KeyPair {
     pub fn generate() -> Self {
-        let private = SigningKey::generate(&mut rand::rngs::OsRng);
+        let mut bytes = [0u8; 32];
+        rand::rngs::OsRng.fill_bytes(&mut bytes);
+        let private = SigningKey::from_bytes(&bytes);
         let public = private.verifying_key();
-        Self { private: Zeroizing::new(private), public }
+        Self { private, public }
     }
 
     pub fn from_private(private: SigningKey) -> Self {
         let public = private.verifying_key();
-        Self { private: Zeroizing::new(private), public }
+        Self { private, public }
     }
 
     pub fn sign(&self, msg: &[u8]) -> Signature {
@@ -62,6 +89,30 @@ impl Ed25519KeyPair {
     }
 }
 
+impl Serialize for Ed25519KeyPair {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_struct("Ed25519KeyPair", 2)?;
+        state.serialize_field("private", &self.private.to_bytes())?;
+        state.serialize_field("public", &self.public.to_bytes())?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Ed25519KeyPair {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Ed25519KeyPairHelper {
+            private: [u8; 32],
+            public: [u8; 32],
+        }
+        let helper = Ed25519KeyPairHelper::deserialize(deserializer)?;
+        let private = SigningKey::from_bytes(&helper.private);
+        let public = VerifyingKey::from_bytes(&helper.public)
+            .map_err(serde::de::Error::custom)?;
+        Ok(Self { private, public })
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MlKem768KeyPair {
     pub public: Vec<u8>,
@@ -70,27 +121,37 @@ pub struct MlKem768KeyPair {
 
 impl MlKem768KeyPair {
     pub fn generate() -> Result<Self> {
-        let (pk, sk) = MlKem768::keygen();
+        let mut rng = rand::rngs::OsRng;
+        let (dk, ek) = MlKem768::generate(&mut rng);
         Ok(Self {
-            public: pk.to_vec(),
-            private: sk.to_vec(),
+            public: ek.as_bytes().as_slice().to_vec(),
+            private: dk.as_bytes().as_slice().to_vec(),
         })
     }
 
     pub fn encapsulate(&self) -> Result<(Vec<u8>, [u8; 32])> {
-        let pk = MlKem768::PublicKey::from_bytes(&self.public)
-            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-KEM-768 public key".into()))?;
-        let (ct, ss) = MlKem768::encapsulate(&pk);
-        Ok((ct.to_vec(), ss.into()))
+        let ek_bytes: &Array<_, _> = self.public.as_slice().try_into()
+            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-KEM-768 public key length".into()))?;
+        let ek = <MlKem768 as KemCore>::EncapsulationKey::from_bytes(ek_bytes);
+        let mut rng = rand::rngs::OsRng;
+        let (ct, ss) = ek.encapsulate(&mut rng)
+            .map_err(|_| CryptoError::PostQuantumWrapper("ML-KEM-768 encapsulation failed".into()))?;
+        let ss_bytes: [u8; 32] = ss.as_slice().try_into()
+            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid shared key length".into()))?;
+        Ok((ct.as_slice().to_vec(), ss_bytes))
     }
 
     pub fn decapsulate(&self, ciphertext: &[u8]) -> Result<[u8; 32]> {
-        let sk = MlKem768::SecretKey::from_bytes(&self.private)
-            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-KEM-768 secret key".into()))?;
-        let ct = MlKem768::Ciphertext::from_bytes(ciphertext)
+        let dk_bytes: &Array<_, _> = self.private.as_slice().try_into()
+            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-KEM-768 secret key length".into()))?;
+        let dk = <MlKem768 as KemCore>::DecapsulationKey::from_bytes(dk_bytes);
+        let ct: &MlKemCiphertext<MlKem768> = ciphertext.try_into()
             .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-KEM-768 ciphertext".into()))?;
-        let ss = MlKem768::decapsulate(&sk, &ct);
-        Ok(ss.into())
+        let ss = dk.decapsulate(ct)
+            .map_err(|_| CryptoError::PostQuantumWrapper("ML-KEM-768 decapsulation failed".into()))?;
+        let ss_bytes: [u8; 32] = ss.as_slice().try_into()
+            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid shared key length".into()))?;
+        Ok(ss_bytes)
     }
 }
 
@@ -102,27 +163,37 @@ pub struct MlKem1024KeyPair {
 
 impl MlKem1024KeyPair {
     pub fn generate() -> Result<Self> {
-        let (pk, sk) = MlKem1024::keygen();
+        let mut rng = rand::rngs::OsRng;
+        let (dk, ek) = MlKem1024::generate(&mut rng);
         Ok(Self {
-            public: pk.to_vec(),
-            private: sk.to_vec(),
+            public: ek.as_bytes().as_slice().to_vec(),
+            private: dk.as_bytes().as_slice().to_vec(),
         })
     }
 
     pub fn encapsulate(&self) -> Result<(Vec<u8>, [u8; 32])> {
-        let pk = MlKem1024::PublicKey::from_bytes(&self.public)
-            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-KEM-1024 public key".into()))?;
-        let (ct, ss) = MlKem1024::encapsulate(&pk);
-        Ok((ct.to_vec(), ss.into()))
+        let ek_bytes: &Array<_, _> = self.public.as_slice().try_into()
+            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-KEM-1024 public key length".into()))?;
+        let ek = <MlKem1024 as KemCore>::EncapsulationKey::from_bytes(ek_bytes);
+        let mut rng = rand::rngs::OsRng;
+        let (ct, ss) = ek.encapsulate(&mut rng)
+            .map_err(|_| CryptoError::PostQuantumWrapper("ML-KEM-1024 encapsulation failed".into()))?;
+        let ss_bytes: [u8; 32] = ss.as_slice().try_into()
+            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid shared key length".into()))?;
+        Ok((ct.as_slice().to_vec(), ss_bytes))
     }
 
     pub fn decapsulate(&self, ciphertext: &[u8]) -> Result<[u8; 32]> {
-        let sk = MlKem1024::SecretKey::from_bytes(&self.private)
-            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-KEM-1024 secret key".into()))?;
-        let ct = MlKem1024::Ciphertext::from_bytes(ciphertext)
+        let dk_bytes: &Array<_, _> = self.private.as_slice().try_into()
+            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-KEM-1024 secret key length".into()))?;
+        let dk = <MlKem1024 as KemCore>::DecapsulationKey::from_bytes(dk_bytes);
+        let ct: &MlKemCiphertext<MlKem1024> = ciphertext.try_into()
             .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-KEM-1024 ciphertext".into()))?;
-        let ss = MlKem1024::decapsulate(&sk, &ct);
-        Ok(ss.into())
+        let ss = dk.decapsulate(ct)
+            .map_err(|_| CryptoError::PostQuantumWrapper("ML-KEM-1024 decapsulation failed".into()))?;
+        let ss_bytes: [u8; 32] = ss.as_slice().try_into()
+            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid shared key length".into()))?;
+        Ok(ss_bytes)
     }
 }
 
@@ -134,43 +205,54 @@ pub struct MlDsaKeyPair {
 
 impl MlDsaKeyPair {
     pub fn generate() -> Result<Self> {
-        let (pk, sk) = ml_dsa::MlDsa65::keygen();
+        use ml_dsa::Keypair;
+        let mut seed_bytes = [0u8; 32];
+        rand::rngs::OsRng.fill_bytes(&mut seed_bytes);
+        let seed = ml_dsa::Seed::try_from(&seed_bytes[..])
+            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid seed length".into()))?;
+        let sk = ml_dsa::SigningKey::<ml_dsa::MlDsa65>::from_seed(&seed);
+        let pk = sk.verifying_key();
         Ok(Self {
-            public: pk.to_vec(),
-            private: sk.to_vec(),
+            public: pk.encode().as_slice().to_vec(),
+            private: sk.to_seed().as_slice().to_vec(),
         })
     }
 
     pub fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
-        let sk = ml_dsa::MlDsa65::SecretKey::from_bytes(&self.private)
-            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-DSA secret key".into()))?;
-        let sig = ml_dsa::MlDsa65::sign(&sk, msg);
-        Ok(sig.to_vec())
+        use ml_dsa::Signer;
+        let seed = ml_dsa::Seed::try_from(self.private.as_slice())
+            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-DSA secret key length".into()))?;
+        let sk = ml_dsa::SigningKey::<ml_dsa::MlDsa65>::from_seed(&seed);
+        let sig = sk.try_sign(msg)
+            .map_err(|_| CryptoError::PostQuantumWrapper("ML-DSA signing failed".into()))?;
+        Ok(sig.encode().as_slice().to_vec())
     }
 
     pub fn verify(public: &[u8], msg: &[u8], sig: &[u8]) -> Result<bool> {
-        let pk = ml_dsa::MlDsa65::PublicKey::from_bytes(public)
-            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-DSA public key".into()))?;
-        let sig = ml_dsa::MlDsa65::Signature::from_bytes(sig)
+        use ml_dsa::Verifier;
+        let pk_enc = ml_dsa::EncodedVerifyingKey::<ml_dsa::MlDsa65>::try_from(public)
+            .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-DSA public key length".into()))?;
+        let pk = ml_dsa::VerifyingKey::<ml_dsa::MlDsa65>::decode(&pk_enc);
+        let sig = ml_dsa::Signature::<ml_dsa::MlDsa65>::try_from(sig)
             .map_err(|_| CryptoError::PostQuantumWrapper("Invalid ML-DSA signature".into()))?;
-        Ok(ml_dsa::MlDsa65::verify(&pk, msg, &sig).is_ok())
+        Ok(pk.verify(msg, &sig).is_ok())
     }
 }
 
 pub fn hybrid_key_exchange(
     our_x25519: &X25519KeyPair,
     our_mlkem768: &MlKem768KeyPair,
-    peer_x25519_pk: &X25519PublicKey,
+    peer_x25519_pk: &[u8; 32],
     peer_mlkem768_pk: &[u8],
-) -> Result<[u8; 64]> {
+) -> Result<[u8; 32]> {
     let x25519_shared = our_x25519.diffie_hellman(peer_x25519_pk);
     let (_, mlkem_shared) = our_mlkem768.encapsulate()?;
-    
+
     let mut combined = [0u8; 64];
     combined[..32].copy_from_slice(&x25519_shared);
     combined[32..].copy_from_slice(&mlkem_shared);
-    
-    let derived = crate::kdf::derive_key(TLS_HYBRID_LABEL, &combined, b"session");
+
+    let derived = crate::hashing::derive_key(TLS_HYBRID_LABEL, &combined, b"session");
     Ok(derived)
 }
 
@@ -210,10 +292,11 @@ pub fn server_side_pq_wrap(
     pq_wrapping_key: &PqWrappingKey,
     data: &[u8],
 ) -> Result<EncryptedData> {
-    let cipher = Aes256Gcm::new(aes_gcm::Key::<Aes256Gcm>::from_slice(pq_wrapping_key.0.as_ref()));
+    use aes_gcm::{Aes256Gcm, Key, Nonce, aead::{Aead, KeyInit}};
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(pq_wrapping_key.0.as_ref()));
     let mut nonce_bytes = [0u8; 12];
     rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
-    let nonce = aes_gcm::Nonce::from_slice(&nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
     let ciphertext = cipher.encrypt(nonce, data)
         .map_err(|e| CryptoError::Encryption(e.to_string()))?;
     let mut full = Vec::new();
@@ -226,18 +309,17 @@ pub fn server_side_pq_unwrap(
     pq_wrapping_key: &PqWrappingKey,
     encrypted: &EncryptedData,
 ) -> Result<Vec<u8>> {
+    use aes_gcm::{Aes256Gcm, Key, Nonce, aead::{Aead, KeyInit}};
     if encrypted.0.len() < 12 {
         return Err(CryptoError::Decryption("Server PQ wrapped data too short".into()));
     }
-    let nonce = aes_gcm::Nonce::from_slice(&encrypted.0[..12]);
+    let nonce = Nonce::from_slice(&encrypted.0[..12]);
     let ciphertext = &encrypted.0[12..];
-    let cipher = Aes256Gcm::new(aes_gcm::Key::<Aes256Gcm>::from_slice(pq_wrapping_key.0.as_ref()));
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(pq_wrapping_key.0.as_ref()));
     let plaintext = cipher.decrypt(nonce, ciphertext)
         .map_err(|e| CryptoError::Decryption(e.to_string()))?;
     Ok(plaintext)
 }
-
-use aes_gcm::{Aes256Gcm, Key, Nonce, aead::{Aead, KeyInit}};
 
 pub fn sign_with_both(
     ed25519_kp: &Ed25519KeyPair,
@@ -258,13 +340,14 @@ pub fn verify_with_both(
     msg: &[u8],
     sig: &HybridSignature,
 ) -> Result<bool> {
-    let ed_sig = ed25519_dalek::Signature::from_bytes(&sig.ed25519)
+    let ed_sig_bytes: [u8; 64] = sig.ed25519.as_slice().try_into()
         .map_err(|_| CryptoError::InvalidSignature)?;
+    let ed_sig = ed25519_dalek::Signature::from_bytes(&ed_sig_bytes);
     ed25519_pk.verify(msg, &ed_sig)
         .map_err(|_| CryptoError::SignatureVerificationFailed)?;
-    
+
     let ml_ok = MlDsaKeyPair::verify(ml_dsa_pk, msg, &sig.ml_dsa)?;
-    
+
     Ok(ml_ok)
 }
 
@@ -309,17 +392,17 @@ mod tests {
         let alice_mlkem = MlKem768KeyPair::generate().unwrap();
         let bob_x25519 = X25519KeyPair::generate();
         let bob_mlkem = MlKem768KeyPair::generate().unwrap();
-        
+
         let alice_shared = hybrid_key_exchange(
             &alice_x25519, &alice_mlkem,
             &bob_x25519.public, &bob_mlkem.public
         ).unwrap();
-        
+
         let bob_shared = hybrid_key_exchange(
             &bob_x25519, &bob_mlkem,
             &alice_x25519.public, &alice_mlkem.public
         ).unwrap();
-        
+
         assert_eq!(alice_shared, bob_shared);
     }
 }

@@ -1,7 +1,7 @@
 use snex_crypto::{
     nullifiers::{Nullifier, OperationSecret, Pseudonym},
     bbs::BbsCredential,
-    hash::Hash,
+    hashing::Hash,
 };
 use crate::{epoch::Epoch, pseudonym::PseudonymFunction, error::{CoreError, Result}};
 use uuid::Uuid;

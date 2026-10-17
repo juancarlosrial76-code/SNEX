@@ -1,17 +1,40 @@
 use crate::error::{CryptoError, Result};
 use crate::hashing::{Hash, DOMAIN_COMMITMENT};
-use ff::PrimeField;
+use ff::{Field, PrimeField};
 use group::{Group, GroupEncoding};
-use k256::{ProjectivePoint, Scalar, AffinePoint};
+use k256::{ProjectivePoint, AffinePoint};
 use rand::RngCore;
 use zeroize::{Zeroize, Zeroizing};
-use serde::{Serialize, Deserialize};
 use std::ops::{Add, Mul};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub use k256::Scalar;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommitmentKey {
     pub g: AffinePoint,
     pub h: AffinePoint,
+}
+
+impl serde::Serialize for CommitmentKey {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let (g, h) = self.to_bytes();
+        use serde::ser::SerializeTuple;
+        let mut t = serializer.serialize_tuple(2)?;
+        t.serialize_element(&g.as_slice())?;
+        t.serialize_element(&h.as_slice())?;
+        t.end()
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for CommitmentKey {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        let (g, h): (Vec<u8>, Vec<u8>) = serde::Deserialize::deserialize(deserializer)?;
+        let g_arr: [u8; 33] = g.as_slice().try_into()
+            .map_err(|_| serde::de::Error::custom("invalid generator length"))?;
+        let h_arr: [u8; 33] = h.as_slice().try_into()
+            .map_err(|_| serde::de::Error::custom("invalid commitment point length"))?;
+        Self::from_bytes(&g_arr, &h_arr).map_err(serde::de::Error::custom)
+    }
 }
 
 impl CommitmentKey {
@@ -26,9 +49,11 @@ impl CommitmentKey {
 
     pub fn from_bytes(g_bytes: &[u8; 33], h_bytes: &[u8; 33]) -> Result<Self> {
         let g = AffinePoint::from_bytes(g_bytes.into())
-            .map_err(|_| CryptoError::InvalidParameter("Invalid generator point".into()))?;
+            .into_option()
+            .ok_or_else(|| CryptoError::InvalidParameter("Invalid generator point".into()))?;
         let h = AffinePoint::from_bytes(h_bytes.into())
-            .map_err(|_| CryptoError::InvalidParameter("Invalid commitment point".into()))?;
+            .into_option()
+            .ok_or_else(|| CryptoError::InvalidParameter("Invalid commitment point".into()))?;
         Ok(Self { g, h })
     }
 
@@ -40,7 +65,7 @@ impl CommitmentKey {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Zeroize, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Zeroize)]
 pub struct PedersenCommitment {
     pub value: Scalar,
     pub blinding: Scalar,
@@ -66,9 +91,24 @@ impl PedersenCommitment {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Zeroize)]
 pub struct Commitment {
     pub point: AffinePoint,
+}
+
+impl serde::Serialize for Commitment {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(&self.to_bytes())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Commitment {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        let bytes = <Vec<u8>>::deserialize(deserializer)?;
+        let arr: [u8; 33] = bytes.as_slice().try_into()
+            .map_err(|_| serde::de::Error::custom("invalid commitment length"))?;
+        Self::from_bytes(&arr).map_err(serde::de::Error::custom)
+    }
 }
 
 impl Commitment {
@@ -79,7 +119,8 @@ impl Commitment {
 
     pub fn from_bytes(bytes: &[u8; 33]) -> Result<Self> {
         let point = AffinePoint::from_bytes(bytes.into())
-            .map_err(|_| CryptoError::InvalidParameter("Invalid commitment point".into()))?;
+            .into_option()
+            .ok_or_else(|| CryptoError::InvalidParameter("Invalid commitment point".into()))?;
         Ok(Self { point })
     }
 
@@ -88,7 +129,7 @@ impl Commitment {
     }
 }
 
-#[derive(Clone, Debug, Zeroize, Serialize, Deserialize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct CommitmentOpening {
     pub value: Scalar,
     pub blinding: Scalar,
@@ -113,7 +154,7 @@ pub fn random_blinding() -> Scalar {
     random_scalar()
 }
 
-#[derive(Clone, Debug, Zeroize, Serialize, Deserialize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct BlindedCommitment {
     pub commitment: Commitment,
     pub blinding: Scalar,

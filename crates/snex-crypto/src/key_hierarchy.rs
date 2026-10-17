@@ -1,6 +1,5 @@
 use crate::error::{CryptoError, Result};
-use crate::hashing::{Hash, DOMAIN_JOURNAL};
-use crate::kdf::derive_key;
+use crate::hashing::{Hash, DOMAIN_JOURNAL, derive_key};
 use aes_gcm::{Aes256Gcm, Key, Nonce, aead::{Aead, KeyInit, OsRng}};
 use aes_gcm::aead::generic_array::GenericArray;
 use chacha20poly1305::{ChaCha20Poly1305, Key as ChaChaKey, Nonce as ChaChaNonce};
@@ -15,7 +14,7 @@ pub const DEK_LABEL: &[u8] = b"SNEX DEK v1";
 pub const BACKUP_WRAPPING_KEY_LABEL: &[u8] = b"SNEX Backup Wrapping Key v1";
 pub const PQ_WRAPPING_KEY_LABEL: &[u8] = b"SNEX PQ Wrapping Key v1";
 
-#[derive(Clone, Debug, Zeroize, Serialize, Deserialize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct MasterKey(pub Zeroizing<[u8; 32]>);
 
 impl MasterKey {
@@ -51,7 +50,7 @@ impl MasterKey {
     }
 }
 
-#[derive(Clone, Debug, Zeroize, Serialize, Deserialize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct Kek(pub Zeroizing<[u8; 32]>);
 
 impl Kek {
@@ -91,8 +90,23 @@ impl Kek {
     }
 }
 
-#[derive(Clone, Debug, Zeroize, Serialize, Deserialize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct Dek(pub Zeroizing<[u8; 32]>);
+
+impl serde::Serialize for Dek {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(self.0.as_ref())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Dek {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        let bytes = <Vec<u8>>::deserialize(deserializer)?;
+        let arr: [u8; 32] = bytes.as_slice().try_into()
+            .map_err(|_| serde::de::Error::custom("invalid DEK length"))?;
+        Ok(Self(Zeroizing::new(arr)))
+    }
+}
 
 impl Dek {
     pub fn generate() -> Self {
@@ -168,7 +182,7 @@ impl EncryptedData {
     }
 }
 
-#[derive(Clone, Debug, Zeroize, Serialize, Deserialize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct BackupWrappingKey(pub Zeroizing<[u8; 32]>);
 
 impl BackupWrappingKey {
@@ -198,7 +212,7 @@ impl BackupWrappingKey {
     }
 }
 
-#[derive(Clone, Debug, Zeroize, Serialize, Deserialize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct PqWrappingKey(pub Zeroizing<[u8; 32]>);
 
 impl PqWrappingKey {
@@ -259,13 +273,25 @@ fn ml_kem_decapsulate(sk: &[u8], ct: &[u8]) -> Result<[u8; 32]> {
     Ok(ss)
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct KeyHierarchy {
     master_key: Option<MasterKey>,
     keks: HashMap<String, Kek>,
     deks: HashMap<String, Dek>,
     backup_wrapping_keys: HashMap<u64, BackupWrappingKey>,
     pq_wrapping_keys: HashMap<u64, PqWrappingKey>,
+}
+
+impl Default for KeyHierarchy {
+    fn default() -> Self {
+        Self {
+            master_key: None,
+            keks: HashMap::new(),
+            deks: HashMap::new(),
+            backup_wrapping_keys: HashMap::new(),
+            pq_wrapping_keys: HashMap::new(),
+        }
+    }
 }
 
 impl KeyHierarchy {
@@ -285,10 +311,13 @@ impl KeyHierarchy {
     }
 
     pub fn get_or_create_dek(&mut self, kek_context: &str, dek_context: &str) -> &Dek {
-        let kek = self.get_or_create_kek(kek_context);
         let full_context = format!("{}/{}", kek_context, dek_context);
-        self.deks.entry(full_context)
-            .or_insert_with(|| kek.derive_dek(dek_context.as_bytes()))
+        if !self.deks.contains_key(&full_context) {
+            let kek = self.get_or_create_kek(kek_context);
+            let dek = kek.derive_dek(dek_context.as_bytes());
+            self.deks.insert(full_context.clone(), dek);
+        }
+        self.deks.get(&full_context).unwrap()
     }
 
     pub fn get_backup_wrapping_key(&mut self, generation: u64) -> &BackupWrappingKey {

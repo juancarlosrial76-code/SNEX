@@ -6,6 +6,7 @@ pub mod encryption;
 pub mod hashing;
 pub mod kdf;
 pub mod error;
+pub mod hsm;
 
 pub use bbs::*;
 pub use commitments::*;
@@ -15,3 +16,4 @@ pub use encryption::*;
 pub use hashing::*;
 pub use kdf::*;
 pub use error::*;
+pub use hsm::*;

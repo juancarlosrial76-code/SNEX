@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@snex.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    profiles:
+      - tools
+
+  redis-commander:
+    image: ghcr.io/joeferner/redis-commander:latest
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      - redis
+    profiles:
+      - tools
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    profiles:
+      - tools
+
+  snex-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      DATABASE_URL: postgresql://snex:snex@postgres:5432/snex
+      REDIS_URL: redis://redis:6379
+      SNEX_SERVER__HOST: 0.0.0.0
+      SNEX_SERVER__PORT: 8080
+      SNEX_LOGGING__LEVEL: debug
+      SNEX_LOGGING__FORMAT: text
+      SNEX_LOGGING__LOG_SQL: "true"
+      RUST_LOG: debug,snex_api=debug,snex_core=debug,snex_crypto=debug
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./crates:/app/crates:ro
+      - ./Cargo.toml:/app/Cargo.toml:ro
+      - ./Cargo.lock:/app/Cargo.lock:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: cargo run --bin snex-api
+    develop:
+      watch:
+        - action: sync
+          path: ./crates
+          target: /app/crates
+        - action: sync
+          path: ./Cargo.toml
+          target: /app/Cargo.toml
+        - action: rebuild
+          path: ./Cargo.lock
+          target: /app/Cargo.lock
+
+  snex-issuer:
+    build:
+      context: .
+      dockerfile: Dockerfile.issuer
+    environment:
+      DATABASE_URL: postgresql://snex:snex@postgres:5432/snex
+      SNEX_LOGGING__LEVEL: debug
+      SNEX_LOGGING__FORMAT: text
+      RUST_LOG: debug,snex_issuer=debug
+    volumes:
+      - ./crates:/app/crates:ro
+      - ./Cargo.toml:/app/Cargo.toml:ro
+      - ./Cargo.lock:/app/Cargo.lock:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: cargo run --bin snex-issuer
+    develop:
+      watch:
+        - action: sync
+          path: ./crates
+          target: /app/crates
+
+  snex-verifier:
+    build:
+      context: .
+      dockerfile: Dockerfile.verifier
+    environment:
+      DATABASE_URL: postgresql://snex:snex@postgres:5432/snex
+      SNEX_LOGGING__LEVEL: debug
+      SNEX_LOGGING__FORMAT: text
+      RUST_LOG: debug,snex_verifier=debug
+    volumes:
+      - ./crates:/app/crates:ro
+      - ./Cargo.toml:/app/Cargo.toml:ro
+      - ./Cargo.lock:/app/Cargo.lock:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: cargo run --bin snex-verifier
+    develop:
+      watch:
+        - action: sync
+          path: ./crates
+          target: /app/crates
+
+  snex-registry:
+    build:
+      context: .
+      dockerfile: Dockerfile.registry
+    environment:
+      DATABASE_URL: postgresql://snex:snex@postgres:5432/snex
+      REDIS_URL: redis://redis:6379
+      SNEX_LOGGING__LEVEL: debug
+      SNEX_LOGGING__FORMAT: text
+      RUST_LOG: debug,snex_registry=debug
+    volumes:
+      - ./crates:/app/crates:ro
+      - ./Cargo.toml:/app/Cargo.toml:ro
+      - ./Cargo.lock:/app/Cargo.lock:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: cargo run --bin snex-registry
+    develop:
+      watch:
+        - action: sync
+          path: ./crates
+          target: /app/crates
+
+volumes:
+  pgadmin-data:
+
+networks:
+  default:
+    name: snex-network

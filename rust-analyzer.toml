@@ -1,0 +1,46 @@
+# rust-analyzer configuration
+# This file is read by rust-analyzer for workspace-specific settings
+
+# Use clippy for check-on-save
+checkOnSave = true
+checkOnSaveCommand = "clippy"
+checkOnSaveExtraArgs = ["--all-targets", "--all-features", "--", "-D", "warnings"]
+
+# Cargo settings
+cargo.allFeatures = true
+cargo.target = "x86_64-unknown-linux-gnu"
+
+# Proc macro support
+procMacro.enable = true
+
+# Inlay hints
+inlayHints.typeHints.enable = true
+inlayHints.parameterHints.enable = true
+inlayHints.chainingHints.enable = true
+inlayHints.closureReturnTypeHints.enable = true
+inlayHints.lifetimeElisionHints.enable = "always"
+
+# Completion
+completion.autoimport.enable = true
+completion.postfix.enable = true
+completion.snippets.enable = true
+
+# Diagnostics
+diagnostics.enable = true
+diagnostics.experimental.enable = true
+diagnostics.disabled = [
+  "unlinked-file"
+]
+
+# Hover
+hover.actions.enable = true
+hover.documentation.enable = true
+hover.links.enable = true
+
+# Lens
+lens.enable = true
+lens.debug.enable = true
+lens.run.enable = true
+
+# Files
+files.excludeDirs = ["target", ".git"]

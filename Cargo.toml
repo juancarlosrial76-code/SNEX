@@ -15,7 +15,15 @@ members = [
     "crates/snex-client",
     "crates/snex-api",
     "crates/snex-cli",
+    "crates/snex-demo",
 ]
+
+[profile.test]
+opt-level = 1
+debug = true
+overflow-checks = true
+lto = false
+panic = "abort"
 
 [workspace.dependencies]
 # Core
@@ -35,42 +43,52 @@ bytes = "1.5"
 hex = "0.4"
 base64 = "0.21"
 zeroize = { version = "1.8", features = ["derive"] }
-rand = { version = "0.8", features = ["rngs", "serde"] }
+rand = { version = "0.8", features = ["std", "std_rng"] }
 rand_chacha = "0.3"
 hmac = "0.12"
 sha2 = "0.10"
 blake3 = "1.5"
 ed25519-dalek = "2.0"
 x25519-dalek = "2.0"
-ml-kem = "0.2"
-ml-dsa = "0.2"
+ml-kem = { version = "0.2", features = ["std"] }
+ml-dsa = "0.1"
 argon2 = "0.5"
 aes-gcm = "0.10"
 chacha20poly1305 = "0.10"
 hkdf = "0.12"
 p256 = "0.13"
-k256 = "0.13"
+k256 = { version = "0.13", features = ["arithmetic"] }
 group = "0.13"
 elliptic-curve = "0.13"
 ff = "0.13"
 subtle = "2.5"
-constant-time-eq = "0.1"
+constant_time_eq = "0.1"
+
+# HSM / PKCS#11
+pkcs11 = "0.5"
+
+# Real BBS signatures
+blst = { version = "0.3", features = ["portable"] }
+bls12_381 = { version = "0.7" }
+pairing = { version = "0.18", features = ["alloc", "std"] }
 
 # Database
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "migrate", "offline"] }
-redis = { version = "0.24", features = ["tokio-comp", "connection-manager", "scripts", "streams"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "migrate"] }
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager", "script", "streams"] }
 
 # Web
 axum = { version = "0.7", features = ["macros", "multipart"] }
 tower = { version = "0.4", features = ["util"] }
-tower-http = { version = "0.5", features = ["trace", "cors", "compression", "decompression", "limit", "timeout", "services-fs", "add-origin"] }
+tower-http = { version = "0.5", features = ["trace", "cors", "compression-full", "decompression-full", "limit", "timeout", "fs", "set-header"] }
 hyper = { version = "1.0", features = ["full", "server-conn"] }
 http = "1.0"
 mime = "0.3"
 percent-encoding = "2.3"
 
 # MLS / Level C
-mls = { version = "0.4", features = ["std", "crypto-rustcrypto"] }
+openmls = { version = "0.5", features = ["default"] }
+openmls_rust_crypto = { version = "0.5" }
+openmls_traits = { version = "0.5", features = ["default"] }
 
 # Testing
 tempfile = "3.8"
@@ -79,6 +97,9 @@ predicates = "3.0"
 proptest = "1.4"
 mockall = "0.12"
 wiremock = { version = "0.5", features = ["tokio"] }
+
+# Test database
+testcontainers = { version = "0.19", features = ["tokio", "postgres", "redis"] }
 
 # Utilities
 futures = "0.3"
@@ -90,4 +111,4 @@ indexmap = "2.2"
 smallvec = "1.13"
 bitflags = "2.6"
 enumflags2 = "0.7"
-strum = { version = "0.26", features = ["derive", "serde"] }
+strum = { version = "0.26", features = ["derive"] }

@@ -114,6 +114,7 @@ pub struct DeletionJournalEntry {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RetentionEngine {
+    #[serde(skip)]
     pub key_hierarchy: KeyHierarchy,
     pub records: HashMap<String, RetentionRecord>,
     pub deletion_journal: Vec<DeletionJournalEntry>,
@@ -230,7 +231,8 @@ impl RetentionEngine {
         pending.approved_at = Some(Utc::now());
         pending.approved_by = Some(approved_by.clone());
 
-        self.execute_destruction(&pending.data_id, approved_by)?;
+        let data_id = pending.data_id.clone();
+        self.execute_destruction(&data_id, approved_by)?;
         self.pending_approvals.remove(&pending_id);
 
         Ok(())

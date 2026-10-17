@@ -4,8 +4,8 @@ use crate::commitments::{CommitmentKey, Commitment, PedersenCommitment, Scalar};
 use crate::nullifiers::{OperationSecret, Nullifier, PseudonymSecret, Pseudonym, CaseHandle, MailboxBaseSecret, MailboxAccess};
 use serde::{Serialize, Deserialize};
 use zeroize::{Zeroize, Zeroizing};
-use bytes::Bytes;
-use std::fmt;
+use rand::RngCore;
+use blst::min_pk::{SecretKey as BlstSecretKey, PublicKey as BlstPublicKey, Signature as BlstSignature};
 
 pub const BBS_CIPHERSUITE: &[u8] = b"BBS_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_";
 
@@ -36,7 +36,7 @@ impl BbsPublicKey {
     }
 }
 
-#[derive(Clone, Debug, Zeroize, Serialize, Deserialize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct BbsSecretKey {
     pub key: Zeroizing<Vec<u8>>,
 }
@@ -60,9 +60,10 @@ impl BbsSecretKey {
     }
 
     pub fn public_key(&self) -> BbsPublicKey {
-        let mut pk = vec![0u8; 96];
-        rand::rngs::OsRng.fill_bytes(&mut pk);
-        BbsPublicKey { key: pk }
+        let sk_bytes: [u8; 32] = self.key.as_slice().try_into().unwrap();
+        let sk = BlstSecretKey::from_bytes(&sk_bytes).unwrap();
+        let pk = sk.sk_to_pk();
+        BbsPublicKey { key: pk.to_bytes().to_vec() }
     }
 }
 
@@ -73,8 +74,8 @@ pub struct BbsSignature {
 
 impl BbsSignature {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() != 112 {
-            return Err(CryptoError::InvalidParameter("BBS signature must be 112 bytes".into()));
+        if bytes.len() != 48 {
+            return Err(CryptoError::InvalidParameter("BBS signature must be 48 bytes".into()));
         }
         Ok(Self { signature: bytes.to_vec() })
     }
@@ -104,13 +105,16 @@ impl BbsCredential {
         attributes: Vec<Vec<u8>>,
         epoch: u64,
     ) -> Self {
-        let now = chrono::Utc::now().timestamp() as u64;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         Self {
             schema_id,
             issuer,
             subject,
             attributes,
-            signature: BbsSignature { signature: vec![0u8; 112] },
+            signature: BbsSignature { signature: vec![0u8; 48] },
             epoch,
             issued_at: now,
             expires_at: now + 3 * 180 * 24 * 3600,
@@ -136,20 +140,39 @@ pub fn blind_issue(
     attributes: &[Vec<u8>],
     epoch: u64,
 ) -> Result<(BbsCredential, BbsSignature)> {
-    let mut signature = vec![0u8; 112];
-    rand::rngs::OsRng.fill_bytes(&mut signature);
     let pk = issuer_sk.public_key();
+
+    let mut msg = Vec::new();
+    msg.extend_from_slice(&commitment.to_bytes());
+    for attr in attributes {
+        msg.extend_from_slice(attr);
+    }
+    msg.extend_from_slice(&epoch.to_be_bytes());
+
+    let sk_bytes: [u8; 32] = issuer_sk.key.as_slice().try_into().unwrap();
+    let sk = BlstSecretKey::from_bytes(&sk_bytes).unwrap();
+    let sig = sk.sign(&msg, BBS_CIPHERSUITE, b"");
+    let sig_bytes = sig.to_bytes();
+
+    let signature = BbsSignature { signature: sig_bytes.to_vec() };
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
     let credential = BbsCredential {
         schema_id: "SNEX_PersonCredential_v1".into(),
         issuer: pk.clone(),
         subject: commitment.to_bytes().to_vec(),
         attributes: attributes.to_vec(),
-        signature: BbsSignature { signature: signature.clone() },
+        signature: signature.clone(),
         epoch,
-        issued_at: chrono::Utc::now().timestamp() as u64,
-        expires_at: chrono::Utc::now().timestamp() as u64 + 3 * 180 * 24 * 3600,
+        issued_at: now,
+        expires_at: now + 3 * 180 * 24 * 3600,
     };
-    Ok((credential, BbsSignature { signature }))
+
+    Ok((credential, signature))
 }
 
 pub fn verify_blind_issuance(
@@ -228,6 +251,7 @@ impl CanonicalCredentialProfile {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use snex_crypto::commitments::CommitmentKey;
 
     #[test]
     fn test_bbs_key_generation() {
@@ -245,7 +269,7 @@ mod tests {
         let blinding = Scalar::random(&mut rand::rngs::OsRng);
         let pc = PedersenCommitment::new(value, blinding);
         let commitment = pc.commit(&commitment_key);
-        
+
         let (cred, sig) = blind_issue(&sk, &commitment, &[b"attr1".to_vec()], 1).unwrap();
         assert_eq!(cred.epoch, 1);
         assert_eq!(cred.issuer, pk);

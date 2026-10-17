@@ -1,5 +1,5 @@
 use crate::error::{CryptoError, Result};
-use crate::hashing::{Hash, DOMAIN_NULLIFIER, DOMAIN_RLN_TAG, DOMAIN_PAIR_TAG, DOMAIN_ESTABLISHMENT_NULLIFIER};
+use crate::hashing::{Hash, DOMAIN_NULLIFIER, DOMAIN_RLN_TAG, DOMAIN_PAIR_TAG};
 use crate::commitments::Scalar;
 use serde::{Serialize, Deserialize};
 use zeroize::{Zeroize, Zeroizing};
@@ -58,8 +58,23 @@ impl AsRef<[u8]> for Nullifier {
     }
 }
 
-#[derive(Clone, Debug, Zeroize, Serialize, Deserialize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct OperationSecret(pub Zeroizing<[u8; 32]>);
+
+impl serde::Serialize for OperationSecret {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(self.0.as_ref())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for OperationSecret {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        let bytes = <Vec<u8>>::deserialize(deserializer)?;
+        let arr: [u8; 32] = bytes.as_slice().try_into()
+            .map_err(|_| serde::de::Error::custom("invalid operation secret length"))?;
+        Ok(Self(Zeroizing::new(arr)))
+    }
+}
 
 impl OperationSecret {
     pub fn generate() -> Self {
@@ -114,8 +129,23 @@ impl OperationSecret {
     }
 }
 
-#[derive(Clone, Debug, Zeroize, Serialize, Deserialize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct PseudonymSecret(pub Zeroizing<[u8; 32]>);
+
+impl serde::Serialize for PseudonymSecret {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(self.0.as_ref())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for PseudonymSecret {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        let bytes = <Vec<u8>>::deserialize(deserializer)?;
+        let arr: [u8; 32] = bytes.as_slice().try_into()
+            .map_err(|_| serde::de::Error::custom("invalid pseudonym secret length"))?;
+        Ok(Self(Zeroizing::new(arr)))
+    }
+}
 
 impl PseudonymSecret {
     pub fn generate() -> Self {
@@ -145,7 +175,7 @@ impl PseudonymSecret {
     pub fn derive_mailbox_base_secret(&self) -> MailboxBaseSecret {
         use crate::hashing::DOMAIN_MAILBOX_ACCESS;
         let hash = Hash::with_domain(DOMAIN_MAILBOX_ACCESS, self.as_bytes());
-        MailboxBaseSecret(hash.0)
+        MailboxBaseSecret(Zeroizing::new(hash.0))
     }
 }
 
@@ -177,8 +207,23 @@ impl Pseudonym {
     }
 }
 
-#[derive(Clone, Debug, Zeroize, Serialize, Deserialize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct MailboxBaseSecret(pub Zeroizing<[u8; 32]>);
+
+impl serde::Serialize for MailboxBaseSecret {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(self.0.as_ref())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for MailboxBaseSecret {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        let bytes = <Vec<u8>>::deserialize(deserializer)?;
+        let arr: [u8; 32] = bytes.as_slice().try_into()
+            .map_err(|_| serde::de::Error::custom("invalid mailbox base secret length"))?;
+        Ok(Self(Zeroizing::new(arr)))
+    }
+}
 
 impl MailboxBaseSecret {
     pub fn derive_mailbox_access(&self, case_handle: &CaseHandle) -> MailboxAccess {
@@ -215,7 +260,7 @@ impl CaseHandle {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Zeroize)]
 pub struct RecoveryCode(pub [u8; 32]);
 
 impl RecoveryCode {

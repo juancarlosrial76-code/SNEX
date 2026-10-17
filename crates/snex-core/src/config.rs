@@ -166,7 +166,7 @@ impl Default for ServerConfig {
         Self {
             host: "127.0.0.1".into(),
             port: 8080,
-            workers: num_cpus::get(),
+            workers: std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4),
             request_timeout_seconds: 30,
             max_request_size: 10 * 1024 * 1024,
         }
@@ -315,7 +315,7 @@ impl Default for LoggingConfig {
 }
 
 impl AppConfig {
-    pub fn load(config_path: Option<&PathBuf>) -> config::ConfigResult<Self> {
+    pub fn load(config_path: Option<&PathBuf>) -> Result<Self, config::ConfigError> {
         let mut builder = Config::builder();
         
         if let Some(path) = config_path {

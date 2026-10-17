@@ -1,0 +1,97 @@
+[graph]
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "x86_64-unknown-linux-musl" },
+    { triple = "aarch64-unknown-linux-gnu" },
+]
+all-features = true
+no-default-features = false
+
+[output]
+feature-depth = 1
+
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+vulnerability = "deny"
+unmaintained = "warn"
+yanked = "warn"
+notice = "warn"
+ignore = [
+    "RUSTSEC-2020-0071",
+]
+
+[licenses]
+unlicensed = "deny"
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "OpenSSL",
+    "Unicode-DFS-2016",
+    "Unicode-DFS-2018",
+    "Zlib",
+]
+deny = [
+    "GPL-2.0",
+    "GPL-3.0",
+]
+copyleft = "deny"
+# Eigene Workspace-Crates stehen unter AGPL-3.0-only
+exceptions = [
+    { allow = ["AGPL-3.0-only"], crate = "snex-anchoring" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-api" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-cli" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-client" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-core" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-crypto" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-demo" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-issuer" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-levelc" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-registry" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-reporting" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-retention" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-tenant" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-verifier" },
+    { allow = ["AGPL-3.0-only"], crate = "snex-voting" },
+]
+allow-osi-fsf-free = "neither"
+default = "deny"
+confidence-threshold = 0.8
+exceptions = [
+    { allow = ["Unicode-DFS-2016"], name = "unicode-ident", version = "*" },
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+allow = [
+    { name = "chrono", version = "0.4" },
+    { name = "syn", version = "1" },
+    { name = "syn", version = "2" },
+    { name = "windows-sys", version = "0.52" },
+    { name = "windows-sys", version = "0.59" },
+]
+deny = [
+    { name = "openssl" },
+    { name = "openssl-sys" ],
+]
+skip = [
+    { name = "windows-sys", version = "0.48" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+[sources.allow-org]
+github = ["khronosgroup"]

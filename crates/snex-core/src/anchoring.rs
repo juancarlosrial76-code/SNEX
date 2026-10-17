@@ -3,6 +3,7 @@ use crate::error::{CoreError, Result};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use serde::{Serialize, Deserialize};
+use strum::{EnumString, Display, AsRefStr};
 use std::collections::VecDeque;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

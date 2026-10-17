@@ -113,6 +113,7 @@ pub struct TenantConfiguration {
 impl Default for TenantConfiguration {
     fn default() -> Self {
         Self {
+            tenant_id: Uuid::nil(),
             minimum_anonymity_set: 30,
             re_release_waiting_period_days: 7,
             publication_cohort_size: 5,

@@ -2,7 +2,7 @@
 name = "snex-crypto"
 version = "0.1.0"
 edition = "2021"
-license = "MIT OR Apache-2.0"
+license = "AGPL-3.0-only"
 description = "Core cryptographic primitives for SNEX: BBS signatures, Pedersen commitments, nullifiers, key hierarchy"
 
 [dependencies]
@@ -28,11 +28,16 @@ group = { workspace = true }
 elliptic-curve = { workspace = true }
 ff = { workspace = true }
 subtle = { workspace = true }
-constant-time-eq = { workspace = true }
+constant_time_eq = { workspace = true }
 bytes = { workspace = true }
 hex = { workspace = true }
 base64 = { workspace = true }
 thiserror = { workspace = true }
+pkcs11 = { workspace = true }
+
+# Real BBS signatures
+blst = { workspace = true }
+bls12_381 = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

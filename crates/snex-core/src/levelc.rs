@@ -1,5 +1,5 @@
 use snex_crypto::encryption::EncryptedData;
-use crate::{tenant::TenantRole, error::{CoreError, Result}};
+use crate::error::{CoreError, Result};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use serde::{Serialize, Deserialize};
@@ -31,7 +31,7 @@ pub struct RoomRuleSet {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PermissionRule {
-    pub allowed_roles: Vec<TenantRole>,
+    pub allowed_roles: Vec<RoomRole>,
     pub requires_approval: bool,
     pub approval_quorum: u32,
 }
@@ -40,17 +40,17 @@ impl Default for RoomRuleSet {
     fn default() -> Self {
         Self {
             add_permission: PermissionRule {
-                allowed_roles: vec![TenantRole::Owner, TenantRole::Admin],
+                allowed_roles: vec![RoomRole::Owner, RoomRole::Admin],
                 requires_approval: true,
                 approval_quorum: 2,
             },
             remove_permission: PermissionRule {
-                allowed_roles: vec![TenantRole::Owner, TenantRole::Admin],
+                allowed_roles: vec![RoomRole::Owner, RoomRole::Admin],
                 requires_approval: false,
                 approval_quorum: 1,
             },
             external_join_permission: PermissionRule {
-                allowed_roles: vec![TenantRole::Owner],
+                allowed_roles: vec![RoomRole::Owner],
                 requires_approval: true,
                 approval_quorum: 2,
             },
@@ -87,7 +87,7 @@ pub struct MemberDevice {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct MLSState {
+pub struct MLSGroupState {
     pub group_id: Vec<u8>,
     pub epoch: u64,
     pub tree_hash: Vec<u8>,
@@ -242,7 +242,7 @@ impl RecoveryPhraseBackup {
         let salt = b"SNEX Recovery Backup v1";
         let phrase_hash = snex_crypto::kdf::derive_key_argon2id(recovery_phrase.as_bytes(), salt)?;
         
-        if phrase_hash.as_ref() != self.recovery_phrase_hash.as_slice() {
+        if phrase_hash.as_slice() != self.recovery_phrase_hash.as_slice() {
             return Err(CoreError::InvalidParameter("Invalid recovery phrase".into()));
         }
         

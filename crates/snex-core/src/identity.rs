@@ -2,7 +2,7 @@ use snex_crypto::{
     bbs::{BbsPublicKey, BbsCredential, BbsSecretKey, CanonicalCredentialProfile},
     nullifiers::{OperationSecret, PseudonymSecret, Pseudonym, MailboxBaseSecret, CaseHandle, RecoveryCode},
     commitments::{CommitmentKey, Commitment, PedersenCommitment},
-    hash::Hash,
+    hashing::Hash,
 };
 use uuid::Uuid;
 use chrono::{DateTime, Utc};

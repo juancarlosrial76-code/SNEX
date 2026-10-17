@@ -52,6 +52,7 @@ pub struct EstablishmentRequest {
     pub epoch: Epoch,
     pub lifetime_index: u32,
     pub zero_knowledge_proof: Vec<u8>,
+    pub received_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -65,7 +66,7 @@ pub struct Batch {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BatchingBuffer {
-    pub pending: HashMap<Uuid, EstablishmentRequest>,
+    pub pending: HashMap<String, EstablishmentRequest>,
     pub min_batch_size: u32,
     pub max_batch_size: u32,
     pub max_establishment_period_hours: u32,
@@ -115,7 +116,7 @@ impl BatchingBuffer {
 
     pub fn cleanup_expired(&mut self, now: DateTime<Utc>) {
         self.pending.retain(|_, req| {
-            let elapsed = now.signed_duration_since(req.established_at).num_hours();
+            let elapsed = now.signed_duration_since(req.received_at).num_hours();
             elapsed < self.max_establishment_period_hours as i64
         });
     }
@@ -273,6 +274,7 @@ mod tests {
                 epoch: Epoch(1),
                 lifetime_index: i,
                 zero_knowledge_proof: vec![],
+                received_at: Utc::now(),
             };
             buffer.add(req).unwrap();
         }
