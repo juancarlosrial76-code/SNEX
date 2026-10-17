@@ -1,0 +1,21 @@
+[package]
+name = "snex-reporting"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+description = "SNEX Reporting service: RLN rate limiting, case management, mailboxes"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+snex-crypto = { path = "../snex-crypto" }
+snex-core = { path = "../snex-core" }
+snex-registry = { path = "../snex-registry" }
+sqlx = { workspace = true }
+async-trait = { workspace = true }

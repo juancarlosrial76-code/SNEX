@@ -1,0 +1,22 @@
+[package]
+name = "snex-voting"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+description = "SNEX Voting service: Merkle snapshots, nullifier-based votes, register publication"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+snex-crypto = { path = "../snex-crypto" }
+snex-core = { path = "../snex-core" }
+snex-registry = { path = "../snex-registry" }
+snex-verifier = { path = "../snex-verifier" }
+sqlx = { workspace = true }
+async-trait = { workspace = true }

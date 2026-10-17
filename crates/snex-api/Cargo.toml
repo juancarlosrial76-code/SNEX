@@ -1,0 +1,27 @@
+[package]
+name = "snex-api"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+description = "SNEX API Gateway: unified HTTP API for all services"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+axum = { workspace = true }
+tower-http = { workspace = true }
+snex-issuer = { path = "../snex-issuer" }
+snex-verifier = { path = "../snex-verifier" }
+snex-registry = { path = "../snex-registry" }
+snex-reporting = { path = "../snex-reporting" }
+snex-voting = { path = "../snex-voting" }
+snex-levelc = { path = "../snex-levelc" }
+snex-anchoring = { path = "../snex-anchoring" }
+snex-retention = { path = "../snex-retention" }
+snex-tenant = { path = "../snex-tenant" }

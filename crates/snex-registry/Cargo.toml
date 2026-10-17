@@ -1,0 +1,21 @@
+[package]
+name = "snex-registry"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+description = "SNEX Registry service: nullifier store, block list, termination list, admission journal"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+snex-crypto = { path = "../snex-crypto" }
+snex-core = { path = "../snex-core" }
+sqlx = { workspace = true }
+redis = { workspace = true }
+async-trait = { workspace = true }

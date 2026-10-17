@@ -1,0 +1,21 @@
+[package]
+name = "snex-anchoring"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+description = "SNEX Anchoring service: hash chains, timestamp anchors, witness protocol"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+snex-crypto = { path = "../snex-crypto" }
+snex-core = { path = "../snex-core" }
+sqlx = { workspace = true }
+async-trait = { workspace = true }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }

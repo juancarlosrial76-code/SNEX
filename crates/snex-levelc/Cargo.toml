@@ -1,0 +1,23 @@
+[package]
+name = "snex-levelc"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+description = "SNEX Level C service: MLS groups, end-to-end encryption"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+snex-crypto = { path = "../snex-crypto" }
+snex-core = { path = "../snex-core" }
+openmls = { workspace = true }
+openmls_rust_crypto = { workspace = true }
+openmls_traits = { workspace = true }
+sqlx = { workspace = true }
+async-trait = { workspace = true }
