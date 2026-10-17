@@ -1,10 +1,11 @@
 use snex_core::{
-    retention::{RetentionEngine, RetentionRecord, LegalHold, BackupGeneration, DeletionJournalEntry, RetentionClass, BackupRegime, PendingDestruction, RetentionPolicy},
+    retention::{RetentionEngine, RetentionRecord, LegalHold, BackupGeneration, DeletionJournalEntry, BackupRegime, PendingDestruction, RetentionPolicy},
     error::{CoreError, Result},
 };
 use snex_crypto::{
     key_hierarchy::{MasterKey, KeyHierarchy, KeyMetadata, KeyType},
-    hash::Hash,
+    hashing::Hash,
+    RetentionClass,
 };
 use uuid::Uuid;
 use chrono::{DateTime, Utc, Duration};
@@ -131,12 +132,12 @@ mod tests {
         
         service.register_data(
             "user123".into(),
-            snex_core::retention::RetentionClass::RA,
+            snex_crypto::RetentionClass::RA,
             Some(Uuid::new_v4()),
             Some("person_key_1".into()),
         ).await.unwrap();
         
         let record = service.get_record("user123").await.unwrap();
-        assert_eq!(record.retention_class, snex_core::retention::RetentionClass::RA);
+        assert_eq!(record.retention_class, snex_crypto::RetentionClass::RA);
     }
 }

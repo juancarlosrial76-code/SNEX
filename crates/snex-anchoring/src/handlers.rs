@@ -7,11 +7,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use snex_core::{
-    anchoring::{AnchoredHash, SecurityCriticalEventType},
-    error::{CoreError, Result},
-};
-use snex_crypto::hashing::Hash;
+use snex_core::anchoring::{AnchoredHash, SecurityCriticalEventType};
 use crate::service::AnchoringService;
 
 #[derive(Deserialize)]
@@ -61,7 +57,7 @@ pub fn router() -> Router<Arc<AnchoringService>> {
 async fn append(
     State(service): State<Arc<AnchoringService>>,
     Json(req): Json<AppendRequest>,
-) -> Result<Json<AppendResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<AppendResponse>, (StatusCode, String)> {
     service.append(req.component, req.action, req.data, req.tenant_id, req.epoch).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(AppendResponse { appended: true }))
@@ -69,7 +65,7 @@ async fn append(
 
 async fn anchor(
     State(service): State<Arc<AnchoringService>>,
-) -> Result<Json<AnchorResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<AnchorResponse>, (StatusCode, String)> {
     service.anchor().await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(AnchorResponse { anchored: true }))
@@ -77,7 +73,7 @@ async fn anchor(
 
 async fn verify(
     State(service): State<Arc<AnchoringService>>,
-) -> Result<Json<VerifyResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<VerifyResponse>, (StatusCode, String)> {
     let valid = service.verify_chain().await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(VerifyResponse { valid }))
@@ -85,7 +81,7 @@ async fn verify(
 
 async fn latest_anchor(
     State(service): State<Arc<AnchoringService>>,
-) -> Result<Json<LatestAnchorResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<LatestAnchorResponse>, (StatusCode, String)> {
     let anchor = service.get_latest_anchor().await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(LatestAnchorResponse { anchor }))
@@ -94,7 +90,7 @@ async fn latest_anchor(
 async fn security_event(
     State(service): State<Arc<AnchoringService>>,
     Json(req): Json<SecurityEventRequest>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> std::result::Result<StatusCode, (StatusCode, String)> {
     service.log_security_critical_event(req.event_type, req.data).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::OK)

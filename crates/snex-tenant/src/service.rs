@@ -85,7 +85,7 @@ impl TenantService {
             return Err(CoreError::AlreadyExists("Member already exists".into()));
         }
         
-        let mut member = TenantMember::new(tenant_id, account_id, role);
+        let mut member = TenantMember::new(tenant_id, account_id, role.clone());
         tenant_members.push(member.clone());
         
         self.log_audit(tenant_id, Actor::System, AuditAction::MemberAdded, serde_json::json!({"account_id": account_id, "role": role.to_string()}), None, None).await;
@@ -106,7 +106,7 @@ impl TenantService {
         let mut members = self.members.write().await;
         if let Some(tenant_members) = members.get_mut(&tenant_id) {
             if let Some(member) = tenant_members.iter_mut().find(|m| m.account_id == account_id) {
-                member.role = role;
+                member.role = role.clone();
                 self.log_audit(tenant_id, Actor::System, AuditAction::MemberRoleChanged, serde_json::json!({"account_id": account_id, "role": role.to_string()}), None, None).await;
             }
         }

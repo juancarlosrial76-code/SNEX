@@ -4,7 +4,7 @@ use snex_core::{
 };
 use snex_crypto::hashing::Hash;
 use uuid::Uuid;
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
@@ -26,7 +26,7 @@ impl AnchoringService {
         };
         
         let http_client = Client::builder()
-            .timeout(Duration::seconds(30))
+            .timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| CoreError::Internal(e.to_string()))?;
         

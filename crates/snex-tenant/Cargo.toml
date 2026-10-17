@@ -18,3 +18,4 @@ snex-crypto = { path = "../snex-crypto" }
 snex-core = { path = "../snex-core" }
 sqlx = { workspace = true }
 async-trait = { workspace = true }
+axum = { workspace = true }

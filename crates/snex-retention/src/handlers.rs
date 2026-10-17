@@ -7,10 +7,8 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use snex_core::{
-    retention::{RetentionClass, RetentionRecord, LegalHold, DeletionJournalEntry, BackupGeneration},
-    error::{CoreError, Result},
-};
+use snex_core::retention::{RetentionRecord, LegalHold, DeletionJournalEntry, BackupGeneration};
+use snex_crypto::RetentionClass;
 use crate::service::RetentionService;
 
 #[derive(Deserialize)]
@@ -102,7 +100,7 @@ pub fn router() -> Router<Arc<RetentionService>> {
 async fn register_data(
     State(service): State<Arc<RetentionService>>,
     Json(req): Json<RegisterDataRequest>,
-) -> Result<Json<RegisterDataResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<RegisterDataResponse>, (StatusCode, String)> {
     service.register_data(req.data_id, req.retention_class, req.tenant_id, req.person_key_id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(RegisterDataResponse { registered: true }))
@@ -111,7 +109,7 @@ async fn register_data(
 async fn get_record(
     State(service): State<Arc<RetentionService>>,
     Path(data_id): Path<String>,
-) -> Result<Json<RecordResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<RecordResponse>, (StatusCode, String)> {
     let record = service.get_record(&data_id).await
         .ok_or((StatusCode::NOT_FOUND, "Record not found".into()))?;
     Ok(Json(RecordResponse { record }))
@@ -121,7 +119,7 @@ async fn request_deletion(
     State(service): State<Arc<RetentionService>>,
     Path(data_id): Path<String>,
     Json(req): Json<RequestDeletionRequest>,
-) -> Result<Json<RequestDeletionResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<RequestDeletionResponse>, (StatusCode, String)> {
     service.request_deletion(&data_id, req.requested_by, req.volume).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     
@@ -136,7 +134,7 @@ async fn approve_destruction(
     State(service): State<Arc<RetentionService>>,
     Path(pending_id): Path<Uuid>,
     Json(req): Json<ApproveDestructionRequest>,
-) -> Result<Json<ApproveDestructionResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<ApproveDestructionResponse>, (StatusCode, String)> {
     service.approve_destruction(pending_id, req.approved_by).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(ApproveDestructionResponse { approved: true }))
@@ -146,7 +144,7 @@ async fn place_legal_hold(
     State(service): State<Arc<RetentionService>>,
     Path(data_id): Path<String>,
     Json(req): Json<PlaceLegalHoldRequest>,
-) -> Result<Json<PlaceLegalHoldResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<PlaceLegalHoldResponse>, (StatusCode, String)> {
     let expires_at = if let Some(s) = req.expires_at {
         Some(chrono::DateTime::parse_from_rfc3339(&s)
             .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid expires_at".into()))?
@@ -167,7 +165,7 @@ async fn place_legal_hold(
 async fn lift_legal_hold(
     State(service): State<Arc<RetentionService>>,
     Path((data_id, hold_id)): Path<(String, Uuid)>,
-) -> Result<Json<LiftLegalHoldResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<LiftLegalHoldResponse>, (StatusCode, String)> {
     service.lift_legal_hold(&data_id, hold_id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(LiftLegalHoldResponse { lifted: true }))
@@ -176,7 +174,7 @@ async fn lift_legal_hold(
 async fn check_legal_hold(
     State(service): State<Arc<RetentionService>>,
     Path(data_id): Path<String>,
-) -> Result<Json<CheckLegalHoldResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<CheckLegalHoldResponse>, (StatusCode, String)> {
     let active = service.check_legal_hold(&data_id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(CheckLegalHoldResponse { active }))
@@ -184,7 +182,7 @@ async fn check_legal_hold(
 
 async fn get_deletion_journal(
     State(service): State<Arc<RetentionService>>,
-) -> Result<Json<DeletionJournalResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<DeletionJournalResponse>, (StatusCode, String)> {
     let entries = service.get_deletion_journal().await;
     Ok(Json(DeletionJournalResponse { entries }))
 }
@@ -192,7 +190,7 @@ async fn get_deletion_journal(
 async fn process_backup_expiry(
     State(service): State<Arc<RetentionService>>,
     Path(generation): Path<u64>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> std::result::Result<StatusCode, (StatusCode, String)> {
     service.process_backup_expiry(generation).await;
     Ok(StatusCode::OK)
 }
