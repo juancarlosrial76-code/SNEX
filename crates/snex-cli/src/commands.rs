@@ -305,24 +305,25 @@ pub enum ConfigAction {
 
 impl Cli {
     pub async fn run(self) -> anyhow::Result<()> {
-        let config = AppConfig::load(Some(&self.config)).unwrap_or_default();
-        let api_url = self.api_url.unwrap_or_else(|| format!("http://{}:{}", config.server.host, config.server.port));
+        let config_path = self.config.clone();
+        let config = AppConfig::load(Some(&config_path)).unwrap_or_default();
+        let api_url = self.api_url.clone().unwrap_or_else(|| format!("http://{}:{}", config.server.host, config.server.port));
         let client = SnexApiClient::new(api_url)?;
 
         match self.command {
-            Commands::Account { action } => self.run_account(action, &client).await,
-            Commands::Tenant { action } => self.run_tenant(action, &client).await,
-            Commands::Credential { action } => self.run_credential(action, &client).await,
-            Commands::Pseudonym { action } => self.run_pseudonym(action, &client).await,
-            Commands::Vote { action } => self.run_vote(action, &client).await,
-            Commands::Report { action } => self.run_report(action, &client).await,
-            Commands::LevelC { action } => self.run_level_c(action, &client).await,
-            Commands::Backup { action } => self.run_backup(action).await,
-            Commands::Config { action } => self.run_config(action).await,
+            Commands::Account { action } => Self::run_account(action, &client).await,
+            Commands::Tenant { action } => Self::run_tenant(action, &client).await,
+            Commands::Credential { action } => Self::run_credential(action, &client).await,
+            Commands::Pseudonym { action } => Self::run_pseudonym(action, &client).await,
+            Commands::Vote { action } => Self::run_vote(action, &client).await,
+            Commands::Report { action } => Self::run_report(action, &client).await,
+            Commands::LevelC { action } => Self::run_level_c(action, &client).await,
+            Commands::Backup { action } => Self::run_backup(action).await,
+            Commands::Config { action } => Self::run_config(action, &config_path).await,
         }
     }
 
-    async fn run_account(&self, action: AccountAction, client: &SnexApiClient) -> anyhow::Result<()> {
+    async fn run_account(action: AccountAction, client: &SnexApiClient) -> anyhow::Result<()> {
         match action {
             AccountAction::Create { email, display_name } => {
                 let account = client.create_account(email, display_name).await?;
@@ -340,37 +341,37 @@ impl Cli {
         Ok(())
     }
 
-    async fn run_tenant(&self, action: TenantAction, client: &SnexApiClient) -> anyhow::Result<()> {
+    async fn run_tenant(action: TenantAction, client: &SnexApiClient) -> anyhow::Result<()> {
         println!("Tenant command not yet implemented");
         Ok(())
     }
 
-    async fn run_credential(&self, action: CredentialAction, client: &SnexApiClient) -> anyhow::Result<()> {
+    async fn run_credential(action: CredentialAction, client: &SnexApiClient) -> anyhow::Result<()> {
         println!("Credential command not yet implemented");
         Ok(())
     }
 
-    async fn run_pseudonym(&self, action: PseudonymAction, client: &SnexApiClient) -> anyhow::Result<()> {
+    async fn run_pseudonym(action: PseudonymAction, client: &SnexApiClient) -> anyhow::Result<()> {
         println!("Pseudonym command not yet implemented");
         Ok(())
     }
 
-    async fn run_vote(&self, action: VoteAction, client: &SnexApiClient) -> anyhow::Result<()> {
+    async fn run_vote(action: VoteAction, client: &SnexApiClient) -> anyhow::Result<()> {
         println!("Vote command not yet implemented");
         Ok(())
     }
 
-    async fn run_report(&self, action: ReportAction, client: &SnexApiClient) -> anyhow::Result<()> {
+    async fn run_report(action: ReportAction, client: &SnexApiClient) -> anyhow::Result<()> {
         println!("Report command not yet implemented");
         Ok(())
     }
 
-    async fn run_level_c(&self, action: LevelCAction, client: &SnexApiClient) -> anyhow::Result<()> {
+    async fn run_level_c(action: LevelCAction, client: &SnexApiClient) -> anyhow::Result<()> {
         println!("Level C command not yet implemented");
         Ok(())
     }
 
-    async fn run_backup(&self, action: BackupAction) -> anyhow::Result<()> {
+    async fn run_backup(action: BackupAction) -> anyhow::Result<()> {
         match action {
             BackupAction::Create { recovery_phrase } => {
                 println!("Backup created with recovery phrase");
@@ -386,10 +387,10 @@ impl Cli {
         Ok(())
     }
 
-    async fn run_config(&self, action: ConfigAction) -> anyhow::Result<()> {
+    async fn run_config(action: ConfigAction, config_path: &PathBuf) -> anyhow::Result<()> {
         match action {
             ConfigAction::Show => {
-                let config = AppConfig::load(Some(&self.config)).unwrap_or_default();
+                let config = AppConfig::load(Some(config_path)).unwrap_or_default();
                 println!("{}", toml::to_string_pretty(&config)?);
             }
             ConfigAction::Init { path } => {
