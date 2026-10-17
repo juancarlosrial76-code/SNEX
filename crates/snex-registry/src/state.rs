@@ -8,7 +8,7 @@ use snex_crypto::{
     nullifiers::{Nullifier, OperationSecret, CaseHandle, MailboxAccess},
     key_hierarchy::Dek,
     encryption::EncryptedData,
-    hash::Hash,
+    hashing::Hash,
 };
 use uuid::Uuid;
 use chrono::{DateTime, Utc};

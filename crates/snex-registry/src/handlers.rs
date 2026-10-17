@@ -15,7 +15,7 @@ use snex_core::{
 };
 use snex_crypto::{
     nullifiers::{Nullifier, CaseHandle, MailboxAccess},
-    hash::Hash,
+    hashing::Hash,
     encryption::EncryptedData,
 };
 use crate::service::RegistryService;
@@ -126,15 +126,15 @@ pub fn router() -> Router<Arc<RegistryService>> {
 async fn register_vote(
     State(service): State<Arc<RegistryService>>,
     Json(req): Json<RegisterVoteRequest>,
-) -> Result<Json<RegisterVoteResponse>, (StatusCode, String)> {
-    let nullifier = Nullifier::from_slice(&req.nullifier)
+) -> std::result::Result<Json<RegisterVoteResponse>, (StatusCode, String)> {
+    let nullifier = crate::database::nullifier_from_slice(&req.nullifier)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     
     let vote = Vote::new(
         req.ballot_id,
         nullifier,
         req.vote_value,
-        snex_crypto::nullifiers::Pseudonym::from_slice(&req.pseudonym)
+        crate::database::pseudonym_from_slice(&req.pseudonym)
             .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?,
         req.proof,
     );
@@ -148,7 +148,7 @@ async fn register_vote(
 async fn get_vote_register(
     State(service): State<Arc<RegistryService>>,
     Path(ballot_id): Path<Uuid>,
-) -> Result<Json<snex_core::voting::VoteRegister>, (StatusCode, String)> {
+) -> std::result::Result<Json<snex_core::voting::VoteRegister>, (StatusCode, String)> {
     let register = service.get_vote_register(ballot_id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or((StatusCode::NOT_FOUND, "Vote register not found".into()))?;
@@ -158,7 +158,7 @@ async fn get_vote_register(
 async fn finalize_vote_register(
     State(service): State<Arc<RegistryService>>,
     Path(ballot_id): Path<Uuid>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> std::result::Result<StatusCode, (StatusCode, String)> {
     service.finalize_vote_register(ballot_id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::OK)
@@ -167,11 +167,11 @@ async fn finalize_vote_register(
 async fn register_report(
     State(service): State<Arc<RegistryService>>,
     Json(req): Json<RegisterReportRequest>,
-) -> Result<Json<RegisterReportResponse>, (StatusCode, String)> {
-    let case_handle = CaseHandle::from_slice(&req.case_handle)
+) -> std::result::Result<Json<RegisterReportResponse>, (StatusCode, String)> {
+    let case_handle = crate::database::case_handle_from_slice(&req.case_handle)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     
-    let rate_limit_tag = Nullifier::from_slice(&req.rate_limit_tag)
+    let rate_limit_tag = crate::database::nullifier_from_slice(&req.rate_limit_tag)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let report = snex_core::reporting::Report::new(
@@ -203,7 +203,7 @@ async fn register_report(
 async fn add_reply(
     State(service): State<Arc<RegistryService>>,
     Json(req): Json<AddReplyRequest>,
-) -> Result<Json<AddReplyResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<AddReplyResponse>, (StatusCode, String)> {
     let sent_by = match req.sent_by.as_str() {
         "reporter" => snex_core::reporting::ReplySender::Reporter,
         "officer" => snex_core::reporting::ReplySender::Officer,
@@ -222,7 +222,7 @@ async fn handover_case(
     State(service): State<Arc<RegistryService>>,
     Path(id): Path<Uuid>,
     Json(req): Json<HandoverCaseRequest>,
-) -> Result<Json<HandoverCaseResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<HandoverCaseResponse>, (StatusCode, String)> {
     service.handover_case(id, req.new_officer_key).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(HandoverCaseResponse { handed_over: true }))
@@ -231,7 +231,7 @@ async fn handover_case(
 async fn close_case(
     State(service): State<Arc<RegistryService>>,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> std::result::Result<StatusCode, (StatusCode, String)> {
     service.close_case(id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::OK)
@@ -240,8 +240,8 @@ async fn close_case(
 async fn get_mailbox(
     State(service): State<Arc<RegistryService>>,
     Path(case_handle_hex): Path<String>,
-) -> Result<Json<MailboxResponse>, (StatusCode, String)> {
-    let case_handle = CaseHandle::from_hex(&case_handle_hex)
+) -> std::result::Result<Json<MailboxResponse>, (StatusCode, String)> {
+    let case_handle = crate::database::case_handle_from_hex(&case_handle_hex)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let mailbox = service.get_mailbox(&case_handle).await
@@ -249,7 +249,7 @@ async fn get_mailbox(
         .ok_or((StatusCode::NOT_FOUND, "Mailbox not found".into()))?;
 
     Ok(Json(MailboxResponse {
-        case_handle: mailbox.case_handle.to_hex(),
+        case_handle: crate::database::case_handle_to_hex(&mailbox.case_handle),
         messages: mailbox.messages.into_iter().map(|m| MailboxMessageResponse {
             id: m.id,
             direction: format!("{:?}", m.direction),
@@ -263,12 +263,12 @@ async fn get_mailbox(
 async fn check_nullifier(
     State(service): State<Arc<RegistryService>>,
     Path((domain, nullifier_hex)): Path<(String, String)>,
-) -> Result<Json<CheckNullifierResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<CheckNullifierResponse>, (StatusCode, String)> {
     let domain = match domain.as_str() {
-        "vote" => snex_core::registry::NullifierDomain::Vote,
-        "report" => snex_core::registry::NullifierDomain::Report,
-        "establishment" => snex_core::registry::NullifierDomain::Establishment,
-        "rate_limit" => snex_core::registry::NullifierDomain::RateLimit,
+        "vote" => crate::state::NullifierDomain::Vote,
+        "report" => crate::state::NullifierDomain::Report,
+        "establishment" => crate::state::NullifierDomain::Establishment,
+        "rate_limit" => crate::state::NullifierDomain::RateLimit,
         _ => return Err((StatusCode::BAD_REQUEST, "Invalid domain".into())),
     };
 
@@ -283,7 +283,7 @@ async fn check_nullifier(
 async fn get_admission_journal(
     State(service): State<Arc<RegistryService>>,
     Query(params): Query<AdmissionJournalQuery>,
-) -> Result<Json<AdmissionJournalResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<AdmissionJournalResponse>, (StatusCode, String)> {
     let epoch = params.epoch.map(Epoch).unwrap_or_else(Epoch::current);
     let tenant_id = params.tenant_id;
 

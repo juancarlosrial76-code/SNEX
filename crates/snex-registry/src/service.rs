@@ -6,7 +6,7 @@ use snex_core::{
 };
 use snex_crypto::{
     nullifiers::{Nullifier, CaseHandle, MailboxAccess},
-    hash::Hash,
+    hashing::Hash,
     encryption::EncryptedData,
 };
 use crate::state::{RegistryState, SharedRegistryState, NullifierDomain, NullifierEntry, AdmissionJournalEntry, Mailbox, MailboxMessage, MessageDirection, LeaseToken};
@@ -18,7 +18,7 @@ use tokio::sync::RwLock;
 use tracing::{info, warn, error};
 
 pub struct RegistryService {
-    state: SharedRegistryState,
+    pub state: SharedRegistryState,
     database: RegistryDatabase,
     instance_id: Uuid,
 }
@@ -163,7 +163,7 @@ impl RegistryService {
 
     pub async fn add_termination(&self, tenant_id: Uuid, pseudonym_hash: Hash, epoch: Epoch, lifetime_index: u32) {
         let mut state = self.state.write().await;
-        let entry = snex_core::registry::TerminatedEntry {
+        let entry = crate::state::TerminatedEntry {
             pseudonym_hash,
             tenant_id,
             terminated_epoch: epoch,

@@ -4,7 +4,7 @@ use snex_crypto::{
     nullifiers::{Nullifier, OperationSecret, CaseHandle, MailboxAccess},
     key_hierarchy::Dek,
     encryption::EncryptedData,
-    hash::Hash,
+    hashing::Hash,
 };
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
@@ -108,7 +108,7 @@ async fn test_registry_report_registration() {
     
     service.register_report(&report, &case).await.unwrap();
     
-    let exists = service.check_nullifier(snex_core::registry::NullifierDomain::Report, &rate_limit_tag).await;
+    let exists = service.check_nullifier(snex_registry::state::NullifierDomain::Report, &rate_limit_tag).await;
     assert!(exists);
 }
 
@@ -207,12 +207,12 @@ async fn test_registry_block_list() {
     let op_secret = OperationSecret::generate();
     let nullifier = op_secret.derive_vote_nullifier(b"ballot1");
     
-    let blocked = service.is_blocked(snex_core::registry::NullifierDomain::Vote, &nullifier).await;
+    let blocked = service.is_blocked(snex_registry::state::NullifierDomain::Vote, &nullifier).await;
     assert!(!blocked);
     
-    service.add_to_block_list(snex_core::registry::NullifierDomain::Vote, nullifier).await;
+    service.add_to_block_list(snex_registry::state::NullifierDomain::Vote, nullifier).await;
     
-    let blocked = service.is_blocked(snex_core::registry::NullifierDomain::Vote, &nullifier).await;
+    let blocked = service.is_blocked(snex_registry::state::NullifierDomain::Vote, &nullifier).await;
     assert!(blocked);
 }
 
