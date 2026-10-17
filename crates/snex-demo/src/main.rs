@@ -12,9 +12,9 @@ use snex_core::{
 use snex_crypto::{
     bbs::{BbsSecretKey, BbsPublicKey, BbsCredential, blind_issue, CanonicalCredentialProfile},
     commitments::{CommitmentKey, Commitment, PedersenCommitment, BlindedCommitment},
-    nullifiers::{OperationSecret, PseudonymSecret, Pseudonym, Nullifier, CaseHandle, MailboxBaseSecret, RecoveryCode},
+    nullifiers::{OperationSecret, PseudonymSecret, Pseudonym, Nullifier, CaseHandle, MailboxAccess, MailboxBaseSecret, RecoveryCode},
     key_hierarchy::{MasterKey, KeyHierarchy, Dek, RetentionClass},
-    hash::Hash,
+    hashing::Hash,
     encryption::EncryptedData,
 };
 use uuid::Uuid;
@@ -41,8 +41,6 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
-
     let cli = Cli::parse();
 
     match cli.command {
@@ -318,6 +316,7 @@ async fn step4_pseudonym_establishment(
         epoch,
         lifetime_index: 0,
         zero_knowledge_proof: vec![0u8; 256],
+        received_at: Utc::now(),
     };
 
     println!("│  Establishment request created");
@@ -459,7 +458,7 @@ async fn step6_vote_casting(
 
 async fn step7_report_submission(
     account: &Account,
-) -> anyhow::Result<(Report, Case, snex_core::registry::Mailbox)> {
+) -> anyhow::Result<(Report, Case, snex_core::reporting::Mailbox)> {
     println!("┌─ Step 7: Report Submission (RLN) ───────────────────────────────┐");
 
     let op_secret = OperationSecret::generate();
@@ -479,11 +478,11 @@ async fn step7_report_submission(
     let case = Case::new(&report, case_key, vec![], vec![], Uuid::new_v4());
 
     println!("│  Report submitted: {}...", &report.id.to_string()[..8]);
-    println!("│  Case handle: {}...", &report.case_handle.to_hex()[..16]);
+    println!("│  Case handle: {}...", &hex::encode(report.case_handle.as_bytes())[..16]);
     println!("│  Rate limit tag: {}...", &rate_limit_tag.to_hex()[..16]);
     println!("│  Status: {:?}", report.status);
 
-    let mailbox = snex_core::registry::Mailbox {
+    let mailbox = snex_core::reporting::Mailbox {
         case_handle: report.case_handle,
         mailbox_access: MailboxAccess([0u8; 32]),
         messages: Vec::new(),
@@ -510,7 +509,7 @@ async fn step8_mailbox_retrieval() -> anyhow::Result<Vec<Reply>> {
     let case_handle = CaseHandle::generate();
     let mailbox_access = mailbox_base.derive_mailbox_access(&case_handle);
 
-    println!("│  Case handle: {}...", &case_handle.to_hex()[..16]);
+    println!("│  Case handle: {}...", &hex::encode(case_handle.as_bytes())[..16]);
     println!("│  Mailbox access derived: {}...", &hex::encode(mailbox_access.as_bytes())[..16]);
 
     let reply1 = Reply::new(
