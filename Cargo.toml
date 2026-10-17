@@ -86,9 +86,9 @@ mime = "0.3"
 percent-encoding = "2.3"
 
 # MLS / Level C
-openmls = { version = "0.5", features = ["default"] }
+openmls = { version = "0.8" }
 openmls_rust_crypto = { version = "0.5" }
-openmls_traits = { version = "0.5", features = ["default"] }
+openmls_traits = { version = "0.5" }
 
 # Testing
 tempfile = "3.8"

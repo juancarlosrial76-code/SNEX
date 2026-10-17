@@ -8,9 +8,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use snex_core::{
-    levelc::{LevelCRoom, RoomRuleSet, MemberDevice, RoomRole},
-    tenant::TenantRole,
-    error::{CoreError, Result},
+    levelc::{LevelCRoom, RoomRole},
 };
 use crate::service::LevelCService;
 
@@ -117,25 +115,25 @@ pub fn router() -> Router<Arc<LevelCService>> {
 async fn create_room(
     State(service): State<Arc<LevelCService>>,
     Json(req): Json<CreateRoomRequest>,
-) -> Result<Json<CreateRoomResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<CreateRoomResponse>, (StatusCode, String)> {
     let rule_set = snex_core::levelc::RoomRuleSet {
         add_permission: snex_core::levelc::PermissionRule {
             allowed_roles: req.rule_set.add_permission.allowed_roles.iter()
-                .filter_map(|r| r.parse::<TenantRole>().ok())
+                .filter_map(|r| r.parse::<RoomRole>().ok())
                 .collect(),
             requires_approval: req.rule_set.add_permission.requires_approval,
             approval_quorum: req.rule_set.add_permission.approval_quorum,
         },
         remove_permission: snex_core::levelc::PermissionRule {
             allowed_roles: req.rule_set.remove_permission.allowed_roles.iter()
-                .filter_map(|r| r.parse::<TenantRole>().ok())
+                .filter_map(|r| r.parse::<RoomRole>().ok())
                 .collect(),
             requires_approval: req.rule_set.remove_permission.requires_approval,
             approval_quorum: req.rule_set.remove_permission.approval_quorum,
         },
         external_join_permission: snex_core::levelc::PermissionRule {
             allowed_roles: req.rule_set.external_join_permission.allowed_roles.iter()
-                .filter_map(|r| r.parse::<TenantRole>().ok())
+                .filter_map(|r| r.parse::<RoomRole>().ok())
                 .collect(),
             requires_approval: req.rule_set.external_join_permission.requires_approval,
             approval_quorum: req.rule_set.external_join_permission.approval_quorum,
@@ -158,7 +156,7 @@ async fn create_room(
 async fn get_room(
     State(service): State<Arc<LevelCService>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<LevelCRoom>, (StatusCode, String)> {
+) -> std::result::Result<Json<LevelCRoom>, (StatusCode, String)> {
     let room = service.get_room(id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or((StatusCode::NOT_FOUND, "Room not found".into()))?;
@@ -169,7 +167,7 @@ async fn add_member(
     State(service): State<Arc<LevelCService>>,
     Path(room_id): Path<Uuid>,
     Json(req): Json<AddMemberRequest>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> std::result::Result<StatusCode, (StatusCode, String)> {
     let device = snex_core::levelc::MemberDevice {
         device_id: req.device.device_id,
         leaf_index: req.device.leaf_index,
@@ -187,7 +185,7 @@ async fn add_member(
 async fn remove_member(
     State(service): State<Arc<LevelCService>>,
     Path((room_id, account_id)): Path<(Uuid, Uuid)>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> std::result::Result<StatusCode, (StatusCode, String)> {
     service.remove_member(room_id, account_id, Uuid::nil()).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::OK)
@@ -197,7 +195,7 @@ async fn add_device(
     State(service): State<Arc<LevelCService>>,
     Path((room_id, account_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<AddDeviceRequest>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> std::result::Result<StatusCode, (StatusCode, String)> {
     let device = snex_core::levelc::MemberDevice {
         device_id: req.device.device_id,
         leaf_index: req.device.leaf_index,
@@ -215,7 +213,7 @@ async fn add_device(
 async fn remove_device(
     State(service): State<Arc<LevelCService>>,
     Path((room_id, account_id, device_id)): Path<(Uuid, Uuid, Uuid)>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> std::result::Result<StatusCode, (StatusCode, String)> {
     service.remove_device(room_id, account_id, device_id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::OK)
@@ -224,7 +222,7 @@ async fn remove_device(
 async fn create_device_backup(
     State(service): State<Arc<LevelCService>>,
     Json(req): Json<DeviceBackupRequest>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> std::result::Result<StatusCode, (StatusCode, String)> {
     service.create_device_backup(
         req.account_id,
         req.device_id,
@@ -239,7 +237,7 @@ async fn restore_device_backup(
     State(service): State<Arc<LevelCService>>,
     Path(device_id): Path<Uuid>,
     Json(req): Json<RestoreBackupRequest>,
-) -> Result<Json<RestoreBackupResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<RestoreBackupResponse>, (StatusCode, String)> {
     let keys = service.restore_device_backup(device_id, &req.recovery_phrase).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(RestoreBackupResponse { mls_private_keys: keys }))
@@ -248,7 +246,7 @@ async fn restore_device_backup(
 async fn create_recovery_backup(
     State(service): State<Arc<LevelCService>>,
     Json(req): Json<RecoveryBackupRequest>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> std::result::Result<StatusCode, (StatusCode, String)> {
     service.create_recovery_backup(req.account_id, &req.recovery_phrase, req.backup_data).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::OK)
@@ -258,7 +256,7 @@ async fn restore_recovery_backup(
     State(service): State<Arc<LevelCService>>,
     Path(account_id): Path<Uuid>,
     Json(req): Json<RestoreRecoveryRequest>,
-) -> Result<Json<RestoreRecoveryResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<RestoreRecoveryResponse>, (StatusCode, String)> {
     let data = service.restore_recovery_backup(account_id, &req.recovery_phrase).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(RestoreRecoveryResponse { backup_data: data }))
@@ -267,7 +265,7 @@ async fn restore_recovery_backup(
 async fn verify_group_change(
     State(service): State<Arc<LevelCService>>,
     Path((room_id, version)): Path<(Uuid, u32)>,
-) -> Result<Json<bool>, (StatusCode, String)> {
+) -> std::result::Result<Json<bool>, (StatusCode, String)> {
     let valid = service.verify_group_change(room_id, version).await;
     Ok(Json(valid))
 }
@@ -275,7 +273,7 @@ async fn verify_group_change(
 async fn update_freshness(
     State(service): State<Arc<LevelCService>>,
     Path((room_id, account_id, lag)): Path<(Uuid, Uuid, u64)>,
-) -> Result<Json<bool>, (StatusCode, String)> {
+) -> std::result::Result<Json<bool>, (StatusCode, String)> {
     let fresh = service.update_freshness(room_id, account_id, lag).await;
     Ok(Json(fresh))
 }

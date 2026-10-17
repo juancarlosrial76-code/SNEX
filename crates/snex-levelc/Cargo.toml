@@ -21,3 +21,4 @@ openmls_rust_crypto = { workspace = true }
 openmls_traits = { workspace = true }
 sqlx = { workspace = true }
 async-trait = { workspace = true }
+axum = { workspace = true }
