@@ -20,3 +20,4 @@ sqlx = { workspace = true }
 redis = { workspace = true }
 async-trait = { workspace = true }
 rand = { workspace = true }
+axum = { workspace = true }
