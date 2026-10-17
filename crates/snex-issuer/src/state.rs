@@ -10,7 +10,7 @@ use snex_crypto::{
     commitments::{CommitmentKey, Commitment, PedersenCommitment},
     nullifiers::{OperationSecret, PseudonymSecret},
     key_hierarchy::{MasterKey, KeyHierarchy},
-    hash::Hash,
+    hashing::Hash,
 };
 use uuid::Uuid;
 use chrono::{DateTime, Utc, Duration};
@@ -18,7 +18,8 @@ use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use tokio::sync::RwLock;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+// Kein Serialize/Deserialize: haelt MasterKey, KeyHierarchy und BbsSecretKey (Geheimmaterial).
+#[derive(Clone, Debug)]
 pub struct IssuerState {
     pub accounts: HashMap<Uuid, Account>,
     pub account_secrets: HashMap<Uuid, AccountSecrets>,
@@ -193,7 +194,7 @@ impl IssuerState {
         
         let membership_cred = BbsCredential {
             schema_id: "SNEX_MembershipCredential_v1".into(),
-            issuer: governance_key.public_key.clone().into(),
+            issuer: BbsPublicKey { key: governance_key.public_key.clone() },
             subject: blinded_commitment.to_bytes().to_vec(),
             attributes,
             signature: credential.signature,

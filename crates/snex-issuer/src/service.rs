@@ -10,7 +10,7 @@ use snex_crypto::{
     commitments::{CommitmentKey, Commitment, PedersenCommitment, BlindedCommitment},
     nullifiers::{OperationSecret, PseudonymSecret},
     key_hierarchy::{MasterKey, KeyHierarchy},
-    hash::Hash,
+    hashing::Hash,
 };
 use crate::state::{IssuerState, SharedIssuerState, CredentialType, PendingIssuance};
 use crate::database::IssuerDatabase;
@@ -21,9 +21,9 @@ use tokio::sync::RwLock;
 use tracing::{info, warn, error};
 
 pub struct IssuerService {
-    state: SharedIssuerState,
-    database: IssuerDatabase,
-    config: AppConfig,
+    pub state: SharedIssuerState,
+    pub database: IssuerDatabase,
+    pub config: AppConfig,
 }
 
 impl IssuerService {
