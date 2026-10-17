@@ -7,7 +7,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use snex_core::{identity::Account, epoch::Epoch, error::{CoreError, Result}};
+use snex_core::identity::Account;
 use snex_crypto::{
     bbs::BbsCredential,
     commitments::Commitment,
@@ -104,7 +104,7 @@ pub fn router() -> Router<Arc<IssuerService>> {
 async fn create_account(
     State(service): State<Arc<IssuerService>>,
     Json(req): Json<CreateAccountRequest>,
-) -> Result<Json<CreateAccountResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<CreateAccountResponse>, (StatusCode, String)> {
     let account = service.create_account(req.email, req.display_name).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(CreateAccountResponse { account }))
@@ -114,7 +114,7 @@ async fn start_verification(
     State(service): State<Arc<IssuerService>>,
     Path(id): Path<Uuid>,
     Json(req): Json<StartVerificationRequest>,
-) -> Result<Json<StartVerificationResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<StartVerificationResponse>, (StatusCode, String)> {
     let record = service.start_verification(id, req.provider_id, req.verification_ref).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(StartVerificationResponse { record_id: record.id }))
@@ -124,7 +124,7 @@ async fn complete_verification(
     State(service): State<Arc<IssuerService>>,
     Path(record_id): Path<Uuid>,
     Json(req): Json<CompleteVerificationRequest>,
-) -> Result<Json<CompleteVerificationResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<CompleteVerificationResponse>, (StatusCode, String)> {
     let commitment = Commitment::from_bytes(&req.blinded_commitment.try_into().map_err(|_| (StatusCode::BAD_REQUEST, "Invalid commitment".into()))?)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     
@@ -137,7 +137,7 @@ async fn request_person_credential(
     State(service): State<Arc<IssuerService>>,
     Path(id): Path<Uuid>,
     Json(req): Json<RequestPersonCredentialRequest>,
-) -> Result<Json<RequestPersonCredentialResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<RequestPersonCredentialResponse>, (StatusCode, String)> {
     let commitment = Commitment::from_bytes(&req.blinded_commitment.try_into().map_err(|_| (StatusCode::BAD_REQUEST, "Invalid commitment".into()))?)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     
@@ -150,7 +150,7 @@ async fn request_membership_credential(
     State(service): State<Arc<IssuerService>>,
     Path(id): Path<Uuid>,
     Json(req): Json<RequestMembershipCredentialRequest>,
-) -> Result<Json<RequestMembershipCredentialResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<RequestMembershipCredentialResponse>, (StatusCode, String)> {
     let commitment = Commitment::from_bytes(&req.blinded_commitment.try_into().map_err(|_| (StatusCode::BAD_REQUEST, "Invalid commitment".into()))?)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     
@@ -165,7 +165,7 @@ async fn request_membership_credential(
 async fn advance_issue_next_epoch(
     State(service): State<Arc<IssuerService>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<AdvanceIssueResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<AdvanceIssueResponse>, (StatusCode, String)> {
     let op_secret = service.advance_issue_next_epoch(id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(AdvanceIssueResponse { operation_secret: op_secret.0.to_vec() }))
@@ -173,7 +173,7 @@ async fn advance_issue_next_epoch(
 
 async fn get_epoch_state(
     State(service): State<Arc<IssuerService>>,
-) -> Result<Json<EpochStateResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<EpochStateResponse>, (StatusCode, String)> {
     let epoch_state = service.get_epoch_state().await;
     Ok(Json(EpochStateResponse {
         epoch: epoch_state.epoch.0,
@@ -186,7 +186,7 @@ async fn get_epoch_state(
 
 async fn close_cohort(
     State(service): State<Arc<IssuerService>>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> std::result::Result<StatusCode, (StatusCode, String)> {
     service.close_cohort().await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::OK)
@@ -194,7 +194,7 @@ async fn close_cohort(
 
 async fn activate_grace(
     State(service): State<Arc<IssuerService>>,
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> std::result::Result<StatusCode, (StatusCode, String)> {
     service.activate_grace().await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::OK)

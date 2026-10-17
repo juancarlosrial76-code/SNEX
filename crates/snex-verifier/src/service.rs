@@ -7,9 +7,9 @@ use snex_core::{
 };
 use snex_crypto::{
     bbs::BbsPublicKey,
-    nullifiers::{Nullifier, OperationSecret, Pseudonym, PseudonymSecret, PairTag},
+    nullifiers::{Nullifier, OperationSecret, Pseudonym, PseudonymSecret},
     commitments::Commitment,
-    hash::Hash,
+    hashing::Hash,
 };
 use crate::state::{VerifierState, SharedVerifierState, BuildUpModeState};
 use crate::database::VerifierDatabase;
@@ -20,9 +20,9 @@ use tokio::sync::RwLock;
 use tracing::{info, warn, error};
 
 pub struct VerifierService {
-    state: SharedVerifierState,
-    database: VerifierDatabase,
-    config: AppConfig,
+    pub state: SharedVerifierState,
+    pub database: VerifierDatabase,
+    pub config: AppConfig,
 }
 
 impl VerifierService {
@@ -39,7 +39,7 @@ impl VerifierService {
 
     async fn start_batch_release_task(&self) {
         let state = self.state.clone();
-        let config = self.config.clone();
+        let database = self.database.clone();
         
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
@@ -59,7 +59,7 @@ impl VerifierService {
                         }
                     }
                     
-                    if let Err(e) = self.database.store_batch(&batch).await {
+                    if let Err(e) = database.store_batch(&batch).await {
                         error!("Failed to store batch: {}", e);
                     }
                 }
@@ -87,7 +87,7 @@ impl VerifierService {
         
         let reg = snex_core::pseudonym::PseudonymRegistration::new(
             request.tenant_id,
-            Pseudonym(request.commitment.point.to_encoded_point(true).as_bytes().try_into().unwrap()),
+            crate::state::pseudonym_from_commitment(&request.commitment),
             request.epoch,
             request.lifetime_index,
             request.establishment_nullifier,

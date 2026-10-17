@@ -7,10 +7,11 @@ use snex_core::{
 };
 use snex_crypto::{
     bbs::{BbsCredential, BbsPublicKey},
-    nullifiers::{Nullifier, OperationSecret, PseudonymSecret, Pseudonym, PairTag},
+    nullifiers::{Nullifier, OperationSecret, PseudonymSecret, Pseudonym},
     commitments::{Commitment, CommitmentKey},
-    hash::Hash,
+    hashing::Hash,
 };
+use rand::Rng;
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use serde::{Serialize, Deserialize};
@@ -104,7 +105,7 @@ impl VerifierState {
     }
 
     pub fn release_batch(&mut self) -> Option<Batch> {
-        let threshold = rand::random_range(self.config.verifier.batch_release_threshold_min..=self.config.verifier.batch_release_threshold_max);
+        let threshold = rand::thread_rng().gen_range(self.config.verifier.batch_release_threshold_min..=self.config.verifier.batch_release_threshold_max);
         self.batching_buffer.release(threshold)
     }
 
@@ -112,7 +113,7 @@ impl VerifierState {
         for req in &batch.establishments {
             let reg = PseudonymRegistration::new(
                 req.tenant_id,
-                snex_crypto::nullifiers::Pseudonym(req.commitment.point.to_encoded_point(true).as_bytes().try_into().unwrap()),
+                pseudonym_from_commitment(&req.commitment),
                 req.epoch,
                 req.lifetime_index,
                 req.establishment_nullifier,
@@ -145,13 +146,16 @@ impl VerifierState {
             reg.confirm_epoch();
         }
         
+        let reporting = confirmation.membership_credential.attributes.iter().any(|a| a == b"reporting");
+        let voting = confirmation.membership_credential.attributes.iter().any(|a| a == b"voting");
+        let tenant_id = confirmation.tenant_id;
         self.epoch_confirmations.insert(Uuid::new_v4(), confirmation);
         
-        let counter = self.pseudonym_counters.entry(confirmation.tenant_id).or_default();
-        if confirmation.membership_credential.reporting_authorised {
+        let counter = self.pseudonym_counters.entry(tenant_id).or_default();
+        if reporting {
             *counter.entry(PseudonymFunction::Reporting).or_insert(0) += 1;
         }
-        if confirmation.membership_credential.voting_authorised {
+        if voting {
             *counter.entry(PseudonymFunction::Voting).or_insert(0) += 1;
         }
         
@@ -278,6 +282,12 @@ impl VerifierState {
     pub fn is_terminated(&self, pseudonym: Pseudonym) -> bool {
         self.terminated_pseudonyms.values().any(|t| t.pseudonym_hash.as_bytes() == pseudonym.as_bytes())
     }
+}
+
+/// Leitet das Pseudonym deterministisch aus dem Commitment ab (32 Byte).
+/// Frueher: `to_encoded_point(..).try_into().unwrap()` (33 Byte -> 32, haette Panic ausgeloest).
+pub(crate) fn pseudonym_from_commitment(commitment: &Commitment) -> Pseudonym {
+    Pseudonym(commitment.hash().0)
 }
 
 pub type SharedVerifierState = Arc<RwLock<VerifierState>>;

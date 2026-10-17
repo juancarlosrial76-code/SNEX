@@ -3,8 +3,8 @@ use snex_core::{config::AppConfig, epoch::Epoch, pseudonym::PseudonymFunction, e
 use snex_crypto::{
     bbs::{BbsSecretKey, BbsPublicKey, BbsCredential},
     commitments::{CommitmentKey, Commitment, PedersenCommitment},
-    nullifiers::{OperationSecret, PseudonymSecret, Pseudonym, Nullifier, PairTag},
-    hash::Hash,
+    nullifiers::{OperationSecret, PseudonymSecret, Pseudonym, Nullifier},
+    hashing::Hash,
 };
 use uuid::Uuid;
 use chrono::Utc;
@@ -52,7 +52,7 @@ async fn test_verifier_establishment() {
     drop(state);
     
     let tenant_id = Uuid::new_v4();
-    let req = snex_verifier::state::EstablishmentRequest {
+    let req = snex_core::pseudonym::EstablishmentRequest {
         tenant_id,
         person_credential: person_cred,
         membership_credential: membership_cred,
@@ -63,6 +63,7 @@ async fn test_verifier_establishment() {
         epoch,
         lifetime_index: 0,
         zero_knowledge_proof: vec![],
+        received_at: Utc::now(),
     };
     
     service.process_establishment(req).await.unwrap();
@@ -91,7 +92,7 @@ async fn test_verifier_batch_release() {
         let (person_cred, membership_cred, commitment, commitment_key) = create_test_credentials(1);
         let op_secret = OperationSecret::generate();
         
-        let req = snex_verifier::state::EstablishmentRequest {
+        let req = snex_core::pseudonym::EstablishmentRequest {
             tenant_id,
             person_credential: person_cred,
             membership_credential: membership_cred,
@@ -102,6 +103,7 @@ async fn test_verifier_batch_release() {
             epoch,
             lifetime_index: i,
             zero_knowledge_proof: vec![],
+            received_at: Utc::now(),
         };
         
         let mut state = service.state.write().await;
@@ -135,7 +137,7 @@ async fn test_verifier_epoch_confirmation() {
     
     let (person_cred, membership_cred, _, _) = create_test_credentials(2);
     
-    let confirmation = snex_verifier::state::EpochConfirmation {
+    let confirmation = snex_core::pseudonym::EpochConfirmation {
         pseudonym,
         tenant_id,
         epoch,
@@ -192,7 +194,7 @@ async fn test_verifier_anonymity_set() {
         let (person_cred, membership_cred, commitment, commitment_key) = create_test_credentials(epoch.0);
         let op_secret = OperationSecret::generate();
         
-        let req = snex_verifier::state::EstablishmentRequest {
+        let req = snex_core::pseudonym::EstablishmentRequest {
             tenant_id,
             person_credential: person_cred,
             membership_credential: membership_cred,
@@ -203,6 +205,7 @@ async fn test_verifier_anonymity_set() {
             epoch,
             lifetime_index: i,
             zero_knowledge_proof: vec![],
+            received_at: Utc::now(),
         };
         
         let mut state = service.state.write().await;

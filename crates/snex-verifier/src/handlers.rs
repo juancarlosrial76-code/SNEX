@@ -10,14 +10,14 @@ use uuid::Uuid;
 use snex_core::{
     pseudonym::{EstablishmentRequest, EpochConfirmation, PseudonymFunction},
     epoch::Epoch,
-    error::{CoreError, Result},
 };
 use snex_crypto::{
     bbs::BbsCredential,
     commitments::Commitment,
-    nullifiers::{Nullifier, Pseudonym, PairTag, OperationSecret},
+    nullifiers::Pseudonym,
 };
 use crate::service::VerifierService;
+use crate::database::{nullifier_from_slice, pseudonym_from_slice};
 
 #[derive(Deserialize)]
 pub struct EstablishmentRequestDto {
@@ -94,7 +94,7 @@ pub fn router() -> Router<Arc<VerifierService>> {
 async fn process_establishment(
     State(service): State<Arc<VerifierService>>,
     Json(req): Json<EstablishmentRequestDto>,
-) -> Result<Json<EstablishmentResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<EstablishmentResponse>, (StatusCode, String)> {
     let commitment = Commitment::from_bytes(&req.commitment.try_into().map_err(|_| (StatusCode::BAD_REQUEST, "Invalid commitment".into()))?)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     
@@ -103,10 +103,10 @@ async fn process_establishment(
         &req.commitment_key[33..].try_into().unwrap(),
     ).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    let establishment_nullifier = Nullifier::from_slice(&req.establishment_nullifier)
+    let establishment_nullifier = nullifier_from_slice(&req.establishment_nullifier)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     
-    let pair_tag = PairTag::from_slice(&req.pair_tag)
+    let pair_tag = nullifier_from_slice(&req.pair_tag)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let request = EstablishmentRequest {
@@ -120,6 +120,7 @@ async fn process_establishment(
         epoch: Epoch(req.epoch),
         lifetime_index: req.lifetime_index,
         zero_knowledge_proof: req.zero_knowledge_proof,
+        received_at: chrono::Utc::now(),
     };
 
     service.process_establishment(request).await
@@ -135,8 +136,8 @@ async fn process_establishment(
 async fn confirm_epoch(
     State(service): State<Arc<VerifierService>>,
     Json(req): Json<EpochConfirmationRequest>,
-) -> Result<Json<EpochConfirmationResponse>, (StatusCode, String)> {
-    let pseudonym = Pseudonym::from_slice(&req.pseudonym)
+) -> std::result::Result<Json<EpochConfirmationResponse>, (StatusCode, String)> {
+    let pseudonym = pseudonym_from_slice(&req.pseudonym)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let confirmation = EpochConfirmation {
@@ -157,7 +158,7 @@ async fn confirm_epoch(
 async fn create_snapshot(
     State(service): State<Arc<VerifierService>>,
     Json(req): Json<CreateSnapshotRequest>,
-) -> Result<Json<SnapshotResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<SnapshotResponse>, (StatusCode, String)> {
     let snapshot = service.create_snapshot(req.tenant_id, Epoch(req.epoch), req.ballot_id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -178,7 +179,7 @@ pub struct CreateSnapshotRequest {
 async fn get_snapshot(
     State(service): State<Arc<VerifierService>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<snex_core::voting::Snapshot>, (StatusCode, String)> {
+) -> std::result::Result<Json<snex_core::voting::Snapshot>, (StatusCode, String)> {
     let snapshot = service.get_snapshot(id).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or((StatusCode::NOT_FOUND, "Snapshot not found".into()))?;
@@ -188,7 +189,7 @@ async fn get_snapshot(
 async fn get_anonymity_set(
     State(service): State<Arc<VerifierService>>,
     Path((tenant_id, function)): Path<(Uuid, String)>,
-) -> Result<Json<AnonymitySetResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<AnonymitySetResponse>, (StatusCode, String)> {
     let function = function.parse::<PseudonymFunction>()
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid function".into()))?;
     
@@ -206,7 +207,7 @@ async fn get_anonymity_set(
 async fn check_build_up_mode(
     State(service): State<Arc<VerifierService>>,
     Path((tenant_id, function)): Path<(Uuid, String)>,
-) -> Result<Json<AnonymitySetResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<AnonymitySetResponse>, (StatusCode, String)> {
     let function = function.parse::<PseudonymFunction>()
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid function".into()))?;
     
@@ -224,7 +225,7 @@ async fn check_build_up_mode(
 async fn terminate_pseudonym(
     State(service): State<Arc<VerifierService>>,
     Path(pseudonym_hex): Path<String>,
-) -> Result<Json<TerminateResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<TerminateResponse>, (StatusCode, String)> {
     let pseudonym = Pseudonym::from_hex(&pseudonym_hex)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
@@ -238,7 +239,7 @@ async fn block_pseudonym(
     State(service): State<Arc<VerifierService>>,
     Path(pseudonym_hex): Path<String>,
     Json(req): Json<BlockRequest>,
-) -> Result<Json<BlockResponse>, (StatusCode, String)> {
+) -> std::result::Result<Json<BlockResponse>, (StatusCode, String)> {
     let pseudonym = Pseudonym::from_hex(&pseudonym_hex)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 

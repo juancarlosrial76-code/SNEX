@@ -5,7 +5,7 @@ use snex_crypto::{
     commitments::{CommitmentKey, Commitment, PedersenCommitment, BlindedCommitment},
     nullifiers::{OperationSecret, PseudonymSecret},
     key_hierarchy::MasterKey,
-    hash::Hash,
+    hashing::Hash,
 };
 use uuid::Uuid;
 use chrono::Utc;
@@ -161,7 +161,7 @@ async fn test_issuer_advance_issuance() {
     let account = service.create_account("advance@example.com".into(), "Advance User".into()).await.unwrap();
     
     let op_secret = service.advance_issue_next_epoch(account.id).await.unwrap();
-    assert!(!op_secret.0.as_ref().iter().all(|&b| b == 0));
+    assert!(!op_secret.0.iter().all(|&b| b == 0));
 }
 
 #[tokio::test]
